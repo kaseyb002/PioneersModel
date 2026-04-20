@@ -1,0 +1,52 @@
+import Foundation
+
+public enum PioneersModelError: Error, Equatable, Sendable {
+    case notEnoughPlayers
+    case tooManyPlayers
+    case duplicatePlayerIDs
+    case duplicatePlayerColors
+    case playerNotFound
+    case notInSetupPhase
+    case notWaitingForPlayerToAct
+    case notActivePlayer
+    case notInBeforeRollPhase
+    case notInMainPhase
+    case notInSpecialBuildPhase
+    case mustRollDiceFirst
+    case mustResolveSevenFirst
+    case invalidDiceTotal
+    case invalidVertexID
+    case invalidEdgeID
+    case invalidTileID
+    case invalidPortID
+    case vertexAlreadyOccupied
+    case vertexTooCloseToBuilding
+    case edgeAlreadyOccupied
+    case trailMustConnectToOwnNetwork
+    case notYourBuilding
+    case mustBeHomesteadToUpgrade
+    case insufficientResources
+    case insufficientPieces
+    case noDevCardsAvailable
+    case devCardNotInHand
+    case cannotPlayDevCardPurchasedThisTurn
+    case alreadyPlayedDevCardThisTurn
+    case cannotPlayLandmark
+    case invalidResourceCount
+    case invalidTradeOffer
+    case noOpenTradeOffer
+    case cannotAcceptOwnOffer
+    case notEligibleToAcceptOffer
+    case tradeOfferIDMismatch
+    case invalidBankTrade
+    case invalidPortTrade
+    case portNotOwnedByPlayer
+    case cannotDiscardNow
+    case wrongDiscardAmount
+    case cannotMoveOutlawToSameTile
+    case cannotStealFromPlayer
+    case noValidStealTargets
+    case mustMoveOutlawFirst
+    case gameIsComplete
+    case pathfinderRequiresTwoTrails
+}
