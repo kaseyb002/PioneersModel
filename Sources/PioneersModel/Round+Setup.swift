@@ -83,10 +83,7 @@ extension Round {
         }
 
         // The edge must connect to the homestead the player just placed on this lap.
-        guard let anchorVertex: VertexID = mostRecentInitialHomesteadVertex(playerID: playerID, lap: next.lap) else {
-            throw PioneersModelError.trailMustConnectToOwnNetwork
-        }
-        guard e.endpointVertexIDs.contains(anchorVertex) else {
+        guard canPlaceInitialTrail(at: e.id, forPlayerID: playerID) else {
             throw PioneersModelError.trailMustConnectToOwnNetwork
         }
 
@@ -104,9 +101,25 @@ extension Round {
         }
     }
 
-    /// The vertex ID of the homestead the player most recently placed on a given setup lap.
-    /// Used to validate trail adjacency.
-    private func mostRecentInitialHomesteadVertex(playerID: PlayerID, lap: Int) -> VertexID? {
+    /// Whether an unoccupied edge is a valid initial trail for the current setup placement.
+    /// Initial trails must touch the homestead placed immediately before them, rather than any
+    /// part of the player's existing network.
+    public func canPlaceInitialTrail(at edgeID: EdgeID, forPlayerID playerID: PlayerID) -> Bool {
+        guard case .setup(let pending) = state,
+              let next: SetupPlacement = pending.first,
+              next.playerID == playerID,
+              next.step == .trail,
+              let edge: Edge = edge(id: edgeID),
+              trail(at: edgeID) == nil,
+              let anchorVertex: VertexID = mostRecentInitialHomesteadVertex(playerID: playerID)
+        else {
+            return false
+        }
+        return edge.endpointVertexIDs.contains(anchorVertex)
+    }
+
+    /// The vertex ID of the homestead the player most recently placed during setup.
+    private func mostRecentInitialHomesteadVertex(playerID: PlayerID) -> VertexID? {
         // Walk the log in reverse looking for this player's most recent `placedInitialHomestead`.
         for action in log.reversed() {
             if action.playerID != playerID { continue }

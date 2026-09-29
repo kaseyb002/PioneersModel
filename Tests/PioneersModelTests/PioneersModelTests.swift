@@ -177,6 +177,36 @@ func secondHomesteadGrantsResources() throws {
     #expect(totalResources > 0)
 }
 
+@Test
+func initialTrailOptionsOnlyIncludeEdgesAtMostRecentHomestead() throws {
+    var round: Round = try makeStandardRound(playerCount: 3)
+    let playerID = "p1"
+    let firstVertexID = try #require(round.vertices.first(where: { round.canPlaceHomestead(at: $0.id) })?.id)
+    try round.placeInitialHomestead(playerID: playerID, vertexID: firstVertexID)
+
+    let firstTrailID = try #require(round.vertex(id: firstVertexID)?.adjacentEdgeIDs.first)
+    try round.placeInitialTrail(playerID: playerID, edgeID: firstTrailID)
+
+    round.state = .setup(pendingPlacements: [
+        .init(playerID: playerID, lap: 2, step: .homestead),
+        .init(playerID: playerID, lap: 2, step: .trail),
+    ])
+    let secondVertexID = try #require(round.vertices.first(where: {
+        $0.id != firstVertexID && round.canPlaceHomestead(at: $0.id)
+    })?.id)
+    try round.placeInitialHomestead(playerID: playerID, vertexID: secondVertexID)
+
+    let oldHomeEdgeID = try #require(round.vertex(id: firstVertexID)?.adjacentEdgeIDs.first(where: {
+        $0 != firstTrailID && round.trail(at: $0) == nil
+    }))
+    #expect(round.canPlaceTrail(at: oldHomeEdgeID, forPlayerID: playerID))
+    #expect(!round.canPlaceInitialTrail(at: oldHomeEdgeID, forPlayerID: playerID))
+
+    let newHomeEdgeIDs = try #require(round.vertex(id: secondVertexID)?.adjacentEdgeIDs)
+    #expect(!newHomeEdgeIDs.isEmpty)
+    #expect(newHomeEdgeIDs.allSatisfy { round.canPlaceInitialTrail(at: $0, forPlayerID: playerID) })
+}
+
 // MARK: - Rolling
 
 @Test
