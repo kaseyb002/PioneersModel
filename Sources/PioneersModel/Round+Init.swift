@@ -30,7 +30,9 @@ extension Round {
         let colors: Set<PlayerColor> = Set(players.map(\.color))
         guard colors.count == players.count else { throw PioneersModelError.duplicatePlayerColors }
 
-        let baseMap: GameMap = cookedMap ?? (players.count >= Self.expansionThreshold ? .expansion() : .standard())
+        let template: GameMap = cookedMap ?? (players.count >= Self.expansionThreshold ? .expansion() : .standard())
+        // Cooked maps keep a fixed terrain layout for tests and previews. Live games shuffle hex types.
+        let baseMap: GameMap = cookedMap == nil ? template.shufflingTileTypes() : template
 
         // Assign number tokens to non-desert tiles, either from cooked order or shuffled.
         let tokenOrder: [Int] = cookedNumberTokenOrder ?? baseMap.numberTokenBag.shuffled()

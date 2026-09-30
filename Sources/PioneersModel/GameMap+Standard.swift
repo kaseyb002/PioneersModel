@@ -4,8 +4,8 @@ import Foundation
 
 extension GameMap {
     /// The 3-4 player board: 19 hex tiles (radius-2), 18 number tokens, 9 ports, 25-card dev deck.
-    /// Tile terrain is placed in a fixed order so the board graph and port assignments are
-    /// reproducible across runs. Number tokens and dev cards are placed/shuffled by `Round.init`.
+    /// Terrain is stored in a fixed template order so the board graph and port assignments stay
+    /// reproducible. `Round.init` shuffles hex types, number tokens, and the dev deck for live games.
     public static func standard() -> GameMap {
         let layout: [(CubeCoord, TileType)] = Self.standardTileLayout
         let portAssignments: [(portVerts: (Int, Int), kind: Port.Kind)] = Self.standardPortAssignments
@@ -24,7 +24,7 @@ extension GameMap {
 
     static var standardTileLayout: [(CubeCoord, TileType)] {
         // 19 tiles: 3 hills, 4 forest, 4 pasture, 4 fields, 3 mountains, 1 desert.
-        // Fixed (deterministic) terrain order; number tokens shuffled at Round.init time.
+        // Template order is fixed; `Round.init` shuffles these types onto the coordinates.
         let coords: [CubeCoord] = radius2Coords()
         let order: [TileType] = [
             .forest, .forest, .forest,

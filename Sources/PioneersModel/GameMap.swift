@@ -32,6 +32,31 @@ public struct GameMap: Equatable, Codable, Sendable {
     public var desertTileIDs: [TileID] {
         tiles.filter { $0.type == .desert }.map(\.id)
     }
+
+    /// Returns a copy with the same coordinates, graph, and ports, but terrain types permuted.
+    /// The multiset of tile types is unchanged (including desert count). Number tokens stay `nil`
+    /// so `Round` can assign them after the shuffle.
+    public func shufflingTileTypes() -> GameMap {
+        let shuffledTypes: [TileType] = tiles.map(\.type).shuffled()
+        let shuffledTiles: [Tile] = zip(tiles, shuffledTypes).map { tile, type in
+            Tile(
+                id: tile.id,
+                coord: tile.coord,
+                type: type,
+                numberToken: nil,
+                vertexIDs: tile.vertexIDs,
+                edgeIDs: tile.edgeIDs
+            )
+        }
+        return GameMap(
+            tiles: shuffledTiles,
+            vertices: vertices,
+            edges: edges,
+            ports: ports,
+            numberTokenBag: numberTokenBag,
+            devCardDeck: devCardDeck
+        )
+    }
 }
 
 // MARK: - Board building

@@ -115,6 +115,19 @@ func outlawStartsOnDesert() throws {
     #expect(round.tile(id: round.outlawTileID)?.type == .desert)
 }
 
+@Test
+func liveGamesShuffleHexTypes() throws {
+    let players: [Player] = makePlayers(3)
+    let first: Round = try Round(players: players)
+    let second: Round = try Round(players: players)
+    let firstTypes: [TileType] = first.tiles.map(\.type)
+    let secondTypes: [TileType] = second.tiles.map(\.type)
+    #expect(firstTypes.sorted(by: { $0.rawValue < $1.rawValue }) == secondTypes.sorted(by: { $0.rawValue < $1.rawValue }))
+    #expect(firstTypes != secondTypes)
+    #expect(firstTypes.filter { $0 == .desert }.count == 1)
+    #expect(first.tile(id: first.outlawTileID)?.type == .desert)
+}
+
 // MARK: - Board topology
 
 @Test
