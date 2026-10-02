@@ -124,7 +124,16 @@ extension Round {
     }
 
     private mutating func finishOutlawResolution(reason: OutlawReason, activeID: PlayerID) {
-        state = .waitingForPlayer(id: activeID, phase: .main)
+        let nextPhase: TurnPhase
+        switch reason {
+        case .rolledSeven:
+            nextPhase = .main
+        case .playedRanger:
+            // Ranger may be played before rolling. Completing the card must not skip the
+            // required roll, but a Ranger played after rolling returns to the main phase.
+            nextPhase = hasRolledDiceThisTurn ? .main : .beforeRoll
+        }
+        state = .waitingForPlayer(id: activeID, phase: nextPhase)
     }
 
     /// Remove one random resource card (uniformly weighted) from `playerHands[idx]`, returning the

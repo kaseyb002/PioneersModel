@@ -5,13 +5,13 @@ extension Round {
 
     /// Play a dev card from the active player's hand. Dev cards cannot be played on the same turn
     /// they were purchased (except Landmark, which is silent), and only one dev card may be played
-    /// per turn. Ranger may also be played *before* rolling the dice (standard Catan optional rule).
+    /// per turn. A dev card may also be played before rolling the dice.
     public mutating func playDevCard(id: DevCardID, resource: Resource? = nil, pickedResources: [Resource]? = nil) throws {
         guard isComplete == false else { throw PioneersModelError.gameIsComplete }
         guard case .waitingForPlayer(let activeID, let phase) = state else {
             throw PioneersModelError.notWaitingForPlayerToAct
         }
-        // Dev cards may be played in `.main` or, for rangers, in `.beforeRoll`.
+        // Dev cards may be played in `.main` or `.beforeRoll`.
         switch phase {
         case .main, .beforeRoll: break
         default: throw PioneersModelError.notInMainPhase
@@ -71,7 +71,7 @@ extension Round {
                 playerID: activeID,
                 decision: .playedDevCard(.roundup(resource: r, collected: collected))
             )
-            state = .waitingForPlayer(id: activeID, phase: .main)
+            state = .waitingForPlayer(id: activeID, phase: phaseAfterDevCardResolution)
 
         case .bountifulHarvest:
             guard let picks: [Resource] = pickedResources, picks.count == 2 else {
@@ -82,7 +82,7 @@ extension Round {
                 playerID: activeID,
                 decision: .playedDevCard(.bountifulHarvest(resources: picks))
             )
-            state = .waitingForPlayer(id: activeID, phase: .main)
+            state = .waitingForPlayer(id: activeID, phase: phaseAfterDevCardResolution)
 
         case .landmark:
             // Already guarded above.
@@ -95,6 +95,10 @@ extension Round {
         guard case .waitingForPlayer(let activeID, .playingPathfinder) = state else {
             throw PioneersModelError.pathfinderRequiresTwoTrails
         }
-        state = .waitingForPlayer(id: activeID, phase: .main)
+        state = .waitingForPlayer(id: activeID, phase: phaseAfterDevCardResolution)
+    }
+
+    private var phaseAfterDevCardResolution: TurnPhase {
+        hasRolledDiceThisTurn ? .main : .beforeRoll
     }
 }

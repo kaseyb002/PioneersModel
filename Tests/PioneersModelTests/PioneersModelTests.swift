@@ -373,6 +373,23 @@ func onlyActivePlayerCanPostTradeOffer() throws {
 }
 
 @Test
+func tradeOfferPreservesMixedGiveAndReceiveResources() throws {
+    var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
+    autoSetup(&round)
+    _ = try round.rollDice()
+    round.playerHands[0].resources = [.wood: 2, .sheep: 3]
+
+    let give: [Resource: Int] = [.wood: 1, .sheep: 2]
+    let receive: [Resource: Int] = [.brick: 1, .ore: 1]
+    let offer: TradeOffer = try round.postTradeOffer(give: give, receive: receive)
+
+    #expect(offer.give == give)
+    #expect(offer.receive == receive)
+    #expect(round.openTradeOffer?.give == give)
+    #expect(round.openTradeOffer?.receive == receive)
+}
+
+@Test
 func postTradeOfferReplacesExisting() throws {
     var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
     autoSetup(&round)
@@ -419,6 +436,35 @@ func acceptTradeOfferSwapsResources() throws {
     #expect(round.playerHand(for: "p1")?.resources[.brick] == 1)
     #expect(round.playerHand(for: "p2")?.resources[.brick] == 1)
     #expect(round.playerHand(for: "p2")?.resources[.wood] == 1)
+    #expect(round.openTradeOffer == nil)
+}
+
+@Test
+func acceptTradeOfferSwapsMixedGiveAndReceiveResources() throws {
+    var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
+    autoSetup(&round)
+    _ = try round.rollDice()
+    round.playerHands[0].resources = [.wood: 2, .sheep: 3]
+    round.playerHands[1].resources = [.brick: 2, .ore: 2]
+
+    let offer: TradeOffer = try round.postTradeOffer(
+        give: [.wood: 1, .sheep: 2],
+        receive: [.brick: 1, .ore: 1]
+    )
+    try round.acceptTradeOffer(offerID: offer.id, byPlayerID: "p2")
+
+    #expect(round.playerHand(for: "p1")?.resources == [
+        .wood: 1,
+        .sheep: 1,
+        .brick: 1,
+        .ore: 1,
+    ])
+    #expect(round.playerHand(for: "p2")?.resources == [
+        .wood: 1,
+        .sheep: 2,
+        .brick: 1,
+        .ore: 1,
+    ])
     #expect(round.openTradeOffer == nil)
 }
 
@@ -749,11 +795,75 @@ func rangerMovesOutlawAndCountsTowardLargestArmy() throws {
         _ = try round.stealFromPlayer(victimID: first)
     }
     #expect(round.playerHand(for: "p1")?.rangersPlayed == 1)
+    #expect(round.state == .waitingForPlayer(id: "p1", phase: .main))
 
     // Back in .main, can't play a 2nd dev card this turn.
     #expect(throws: PioneersModelError.alreadyPlayedDevCardThisTurn) {
         try round.playDevCard(id: 9002)
     }
+}
+
+@Test
+func rangerPlayedBeforeRollStillRequiresDiceRollAfterOutlawResolution() throws {
+    var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
+    autoSetup(&round)
+
+    let card: DevCard = DevCard(id: 9001, kind: .ranger)
+    round.playerHands[0].heldDevCards.append(card)
+
+    try round.playDevCard(id: card.id)
+    let target: TileID = round.tiles.first(where: { tile in
+        tile.id != round.outlawTileID
+            && tile.vertexIDs.allSatisfy { round.building(at: $0) == nil }
+    })!.id
+    try round.moveOutlaw(toTileID: target)
+
+    #expect(round.hasRolledDiceThisTurn == false)
+    #expect(round.state == .waitingForPlayer(id: "p1", phase: .beforeRoll))
+    #expect(throws: PioneersModelError.notInMainPhase) {
+        try round.endTurn()
+    }
+
+    _ = try round.rollDice()
+    try round.endTurn()
+    #expect(round.state == .waitingForPlayer(id: "p2", phase: .beforeRoll))
+}
+
+@Test
+func roundupPlayedBeforeRollStillRequiresDiceRoll() throws {
+    var round: Round = try makeStandardRound(playerCount: 3)
+    autoSetup(&round)
+    let card: DevCard = DevCard(id: 9100, kind: .roundup)
+    round.playerHands[0].heldDevCards.append(card)
+
+    try round.playDevCard(id: card.id, resource: .wheat)
+
+    #expect(round.state == .waitingForPlayer(id: "p1", phase: .beforeRoll))
+}
+
+@Test
+func bountifulHarvestPlayedBeforeRollStillRequiresDiceRoll() throws {
+    var round: Round = try makeStandardRound(playerCount: 3)
+    autoSetup(&round)
+    let card: DevCard = DevCard(id: 9200, kind: .bountifulHarvest)
+    round.playerHands[0].heldDevCards.append(card)
+
+    try round.playDevCard(id: card.id, pickedResources: [.wheat, .ore])
+
+    #expect(round.state == .waitingForPlayer(id: "p1", phase: .beforeRoll))
+}
+
+@Test
+func pathfinderEndedEarlyBeforeRollStillRequiresDiceRoll() throws {
+    var round: Round = try makeStandardRound(playerCount: 3)
+    autoSetup(&round)
+    let card: DevCard = DevCard(id: 9300, kind: .pathfinder)
+    round.playerHands[0].heldDevCards.append(card)
+
+    try round.playDevCard(id: card.id)
+    try round.resolvePathfinderEarly()
+
+    #expect(round.state == .waitingForPlayer(id: "p1", phase: .beforeRoll))
 }
 
 @Test

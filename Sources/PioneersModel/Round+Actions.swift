@@ -133,7 +133,8 @@ extension Round {
             if case .waitingForPlayer(let id, .playingPathfinder(let remaining)) = state {
                 let next: Int = remaining - 1
                 if next <= 0 {
-                    state = .waitingForPlayer(id: id, phase: .main)
+                    let nextPhase: TurnPhase = hasRolledDiceThisTurn ? .main : .beforeRoll
+                    state = .waitingForPlayer(id: id, phase: nextPhase)
                 } else {
                     state = .waitingForPlayer(id: id, phase: .playingPathfinder(remainingTrails: next))
                 }
