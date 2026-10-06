@@ -109,6 +109,38 @@ func numberTokensAreAssignedToAllNonDesertTiles() throws {
     }
 }
 
+@Test(arguments: [3, 5])
+func standardNumberTokensFollowOfficialSpiral(playerCount: Int) throws {
+    let round: Round = try Round(players: makePlayers(playerCount))
+    let map: GameMap = playerCount >= Round.expansionThreshold ? .expansion() : .standard()
+    let expected: [Int] = playerCount >= Round.expansionThreshold
+        ? GameMap.expansionSpiralNumberTokens
+        : GameMap.standardSpiralNumberTokens
+    let actual: [Int] = map.spiralTileIDs().compactMap { id in
+        round.tiles.first(where: { $0.id == id })?.numberToken
+    }
+    #expect(actual == expected)
+    let redTiles: [Tile] = round.tiles.filter { $0.numberToken == 6 || $0.numberToken == 8 }
+    for tile in redTiles {
+        #expect(!redTiles.contains { $0.id != tile.id && map.areAdjacent(tile, $0) })
+    }
+}
+
+@Test(arguments: [3, 5])
+func randomNumberTokensKeepRedNumbersApart(playerCount: Int) throws {
+    let map: GameMap = playerCount >= Round.expansionThreshold ? .expansion() : .standard()
+    let round: Round = try Round(
+        players: makePlayers(playerCount),
+        numberTokenLayout: .randomSeparatedRed,
+        cookedMap: map
+    )
+    let redTiles: [Tile] = round.tiles.filter { $0.numberToken == 6 || $0.numberToken == 8 }
+    #expect(round.tiles.compactMap(\.numberToken).sorted() == map.numberTokenBag.sorted())
+    for tile in redTiles {
+        #expect(!redTiles.contains { $0.id != tile.id && map.areAdjacent(tile, $0) })
+    }
+}
+
 @Test
 func outlawStartsOnDesert() throws {
     let round: Round = try makeStandardRound(playerCount: 3)

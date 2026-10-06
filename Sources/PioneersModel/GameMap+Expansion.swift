@@ -69,6 +69,11 @@ extension GameMap {
         [2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 8, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12]
     }
 
+    /// Values on the A-Zc 5-6 player token backs, in setup order.
+    public static var expansionSpiralNumberTokens: [Int] {
+        [2, 5, 4, 6, 3, 9, 8, 11, 11, 10, 6, 3, 8, 4, 8, 10, 11, 12, 10, 5, 4, 9, 5, 9, 12, 3, 2, 6]
+    }
+
     // MARK: - Dev card deck
 
     /// 34 dev cards: 20 Ranger, 5 Landmark, 3 Pathfinder, 3 Roundup, 3 Bountiful Harvest.

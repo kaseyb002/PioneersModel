@@ -62,6 +62,38 @@ public struct GameMap: Equatable, Codable, Sendable {
 // MARK: - Board building
 
 extension GameMap {
+    /// Tile IDs ordered counterclockwise around each successive outer ring, moving inward.
+    /// The first tile is an arbitrary corner, matching the rule that setup may start at any corner.
+    func spiralTileIDs() -> [TileID] {
+        var remaining: [Tile] = tiles
+        var result: [TileID] = []
+
+        while !remaining.isEmpty {
+            let remainingCoords: Set<CubeCoord> = Set(remaining.map(\.coord))
+            let ring: [Tile] = remaining.filter { tile in
+                CubeCoord.directions.contains { !remainingCoords.contains(tile.coord + $0) }
+            }
+            let centerX: Double = ring.map { Double($0.coord.x) }.reduce(0, +) / Double(ring.count)
+            let centerZ: Double = ring.map { Double($0.coord.z) }.reduce(0, +) / Double(ring.count)
+            let orderedRing: [Tile] = ring.sorted { lhs, rhs in
+                let lhsAngle: Double = atan2(Double(lhs.coord.z) - centerZ, Double(lhs.coord.x) - centerX)
+                let rhsAngle: Double = atan2(Double(rhs.coord.z) - centerZ, Double(rhs.coord.x) - centerX)
+                if lhsAngle != rhsAngle { return lhsAngle > rhsAngle }
+                return lhs.id < rhs.id
+            }
+
+            result.append(contentsOf: orderedRing.map(\.id))
+            let ringIDs: Set<TileID> = Set(ring.map(\.id))
+            remaining.removeAll { ringIDs.contains($0.id) }
+        }
+
+        return result
+    }
+
+    func areAdjacent(_ lhs: Tile, _ rhs: Tile) -> Bool {
+        CubeCoord.directions.contains { lhs.coord + $0 == rhs.coord }
+    }
+
     /// Builds the vertex / edge graph from a list of tile cube coordinates and terrain types.
     /// Number tokens are left as `nil` — assigned by `Round.init` from `numberTokenBag`.
     /// Ports are assigned to the given list of perimeter (vertexID, vertexID, kind) triples.

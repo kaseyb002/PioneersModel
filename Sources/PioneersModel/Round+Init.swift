@@ -7,6 +7,7 @@ extension Round {
     ///   - id: Stable identifier for this round. Defaults to a fresh UUID string.
     ///   - started: Start timestamp. Defaults to `.now`.
     ///   - players: 3-6 players with distinct IDs and colors. Seats/turn order follows array order.
+    ///   - numberTokenLayout: Number-token placement policy. Defaults to the official spiral setup.
     ///   - cookedMap: When non-nil, use this GameMap exactly (no selection between standard/expansion).
     ///   - cookedNumberTokenOrder: Non-nil disables number-token shuffling; list must contain one
     ///     token per non-desert tile (in the order those tiles appear in `tiles`).
@@ -17,6 +18,7 @@ extension Round {
         id: String = UUID().uuidString,
         started: Date = .now,
         players: [Player],
+        numberTokenLayout: NumberTokenLayout = .standardSpiral,
         cookedMap: GameMap? = nil,
         cookedNumberTokenOrder: [Int]? = nil,
         cookedDevCardDeck: [DevCard]? = nil,
@@ -34,29 +36,26 @@ extension Round {
         // Cooked maps keep a fixed terrain layout for tests and previews. Live games shuffle hex types.
         let baseMap: GameMap = cookedMap == nil ? template.shufflingTileTypes() : template
 
-        // Assign number tokens to non-desert tiles, either from cooked order or shuffled.
-        let tokenOrder: [Int] = cookedNumberTokenOrder ?? baseMap.numberTokenBag.shuffled()
         let nonDesertCount: Int = baseMap.tiles.filter { $0.type != .desert }.count
-        guard tokenOrder.count == nonDesertCount else {
+        guard cookedNumberTokenOrder?.count ?? nonDesertCount == nonDesertCount else {
             throw PioneersModelError.invalidDiceTotal
         }
-        var tokenIdx: Int = 0
-        var assignedTiles: [Tile] = []
-        for tile in baseMap.tiles {
-            if tile.type == .desert {
-                assignedTiles.append(tile)
-            } else {
-                let token: Int = tokenOrder[tokenIdx]
-                tokenIdx += 1
-                assignedTiles.append(Tile(
-                    id: tile.id,
-                    coord: tile.coord,
-                    type: tile.type,
-                    numberToken: token,
-                    vertexIDs: tile.vertexIDs,
-                    edgeIDs: tile.edgeIDs
-                ))
-            }
+        let tokenAssignments: [TileID: Int]
+        if let cookedNumberTokenOrder {
+            let nonDesertTiles: [Tile] = baseMap.tiles.filter { $0.type != .desert }
+            tokenAssignments = Dictionary(uniqueKeysWithValues: zip(nonDesertTiles.map(\.id), cookedNumberTokenOrder))
+        } else {
+            tokenAssignments = Self.numberTokenAssignments(for: baseMap, layout: numberTokenLayout)
+        }
+        let assignedTiles: [Tile] = baseMap.tiles.map { tile in
+            Tile(
+                id: tile.id,
+                coord: tile.coord,
+                type: tile.type,
+                numberToken: tokenAssignments[tile.id],
+                vertexIDs: tile.vertexIDs,
+                edgeIDs: tile.edgeIDs
+            )
         }
 
         // Outlaw starts on the first desert (there is always at least one on either map).
@@ -98,5 +97,46 @@ extension Round {
         self.cookedStealChoices = cookedStealChoices
         self.state = .setup(pendingPlacements: pendingPlacements)
         self.log = []
+    }
+
+    private static func numberTokenAssignments(
+        for map: GameMap,
+        layout: NumberTokenLayout
+    ) -> [TileID: Int] {
+        switch layout {
+        case .standardSpiral:
+            let tokens: [Int]
+            switch map.numberTokenBag.count {
+            case GameMap.standardNumberTokens.count:
+                tokens = GameMap.standardSpiralNumberTokens
+            case GameMap.expansionNumberTokens.count:
+                tokens = GameMap.expansionSpiralNumberTokens
+            default:
+                tokens = map.numberTokenBag
+            }
+            let tileIDs: [TileID] = map.spiralTileIDs().filter { id in
+                map.tiles.first(where: { $0.id == id })?.type != .desert
+            }
+            precondition(tileIDs.count == tokens.count, "Number-token count must match non-desert tile count")
+            return Dictionary(uniqueKeysWithValues: zip(tileIDs, tokens))
+
+        case .randomSeparatedRed:
+            let nonDesertTiles: [Tile] = map.tiles.filter { $0.type != .desert }
+            for _ in 0..<10_000 {
+                let tokens: [Int] = map.numberTokenBag.shuffled()
+                let hasAdjacentRedNumbers: Bool = zip(nonDesertTiles, tokens).contains { tile, token in
+                    guard token == 6 || token == 8 else { return false }
+                    return zip(nonDesertTiles, tokens).contains { otherTile, otherToken in
+                        otherTile.id != tile.id
+                            && (otherToken == 6 || otherToken == 8)
+                            && map.areAdjacent(tile, otherTile)
+                    }
+                }
+                if !hasAdjacentRedNumbers {
+                    return Dictionary(uniqueKeysWithValues: zip(nonDesertTiles.map(\.id), tokens))
+                }
+            }
+            preconditionFailure("Unable to produce a number-token layout with separated red numbers")
+        }
     }
 }

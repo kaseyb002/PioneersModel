@@ -63,6 +63,11 @@ extension GameMap {
         [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12]
     }
 
+    /// Values on the A-R token backs, in setup order.
+    public static var standardSpiralNumberTokens: [Int] {
+        [5, 2, 6, 3, 8, 10, 9, 12, 11, 4, 8, 10, 9, 4, 5, 6, 3, 11]
+    }
+
     // MARK: - Dev card deck
 
     /// 25 dev cards: 14 Ranger, 5 Landmark, 2 Pathfinder, 2 Roundup, 2 Bountiful Harvest.
