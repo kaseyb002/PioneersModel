@@ -31,6 +31,45 @@ private func autoSetup(_ round: inout Round) {
     _ = Round.autoCompleteSetup(&round)
 }
 
+private func trailPath(
+    in round: Round,
+    length: Int,
+    excluding excludedEdges: Set<EdgeID> = []
+) -> [EdgeID]? {
+    let edgesByVertex: [VertexID: [Edge]] = Dictionary(
+        grouping: round.edges.filter { excludedEdges.contains($0.id) == false },
+        by: { $0.endpointVertexIDs[0] }
+    ).merging(
+        Dictionary(
+            grouping: round.edges.filter { excludedEdges.contains($0.id) == false },
+            by: { $0.endpointVertexIDs[1] }
+        ),
+        uniquingKeysWith: +
+    )
+
+    func search(from vertexID: VertexID, used: Set<EdgeID>, path: [EdgeID]) -> [EdgeID]? {
+        if path.count == length { return path }
+        for edge in edgesByVertex[vertexID, default: []] where used.contains(edge.id) == false {
+            guard let nextVertexID = edge.endpointVertexIDs.first(where: { $0 != vertexID }) else {
+                continue
+            }
+            if let result = search(
+                from: nextVertexID,
+                used: used.union([edge.id]),
+                path: path + [edge.id]
+            ) {
+                return result
+            }
+        }
+        return nil
+    }
+
+    for vertex in round.vertices {
+        if let path = search(from: vertex.id, used: [], path: []) { return path }
+    }
+    return nil
+}
+
 // MARK: - Initialization
 
 @Test
@@ -588,6 +627,68 @@ func longestRoadAwardedAtFive() throws {
     #expect(round.longestRoadHolder == "p1")
 }
 
+@Test
+func tiedLeadersDoNotReceiveLongestRoadWithoutAnIncumbent() throws {
+    var round: Round = try makeStandardRound(playerCount: 3)
+    let firstPath = try #require(trailPath(in: round, length: Round.longestRoadMin))
+    let secondPath = try #require(
+        trailPath(in: round, length: Round.longestRoadMin, excluding: Set(firstPath))
+    )
+    round.trails = firstPath.map { Trail(ownerID: "p1", edgeID: $0) }
+        + secondPath.map { Trail(ownerID: "p2", edgeID: $0) }
+
+    round.checkLongestRoad()
+
+    #expect(round.longestRoadCandidate() == nil)
+    #expect(round.longestRoadHolder == nil)
+}
+
+@Test
+func incumbentKeepsLongestRoadWhenAnotherPlayerTies() throws {
+    var round: Round = try makeStandardRound(playerCount: 3)
+    let firstPath = try #require(trailPath(in: round, length: Round.longestRoadMin))
+    let secondPath = try #require(
+        trailPath(in: round, length: Round.longestRoadMin, excluding: Set(firstPath))
+    )
+    round.trails = firstPath.map { Trail(ownerID: "p1", edgeID: $0) }
+        + secondPath.map { Trail(ownerID: "p2", edgeID: $0) }
+    round.longestRoadHolder = "p1"
+
+    round.checkLongestRoad()
+
+    #expect(round.longestRoadHolder == "p1")
+}
+
+@Test
+func tiedChallengersClearLongestRoadWhenIncumbentNoLongerQualifies() throws {
+    var round: Round = try makeStandardRound(playerCount: 3)
+    let firstPath = try #require(trailPath(in: round, length: Round.longestRoadMin))
+    let secondPath = try #require(
+        trailPath(in: round, length: Round.longestRoadMin, excluding: Set(firstPath))
+    )
+    round.trails = firstPath.map { Trail(ownerID: "p2", edgeID: $0) }
+        + secondPath.map { Trail(ownerID: "p3", edgeID: $0) }
+    round.longestRoadHolder = "p1"
+
+    round.checkLongestRoad()
+
+    #expect(round.longestRoadHolder == nil)
+}
+
+@Test
+func longestRoadAwardLogBelongsToAwardRecipientDuringSpecialBuild() throws {
+    var round: Round = try makeStandardRound(playerCount: 5)
+    let path = try #require(trailPath(in: round, length: Round.longestRoadMin))
+    round.trails = path.map { Trail(ownerID: "p2", edgeID: $0) }
+    round.state = .specialBuildPhase(originatingPlayerID: "p1", pending: ["p2"])
+
+    round.checkLongestRoad()
+
+    #expect(round.longestRoadHolder == "p2")
+    #expect(round.log.last?.playerID == "p2")
+    #expect(round.log.last?.decision == .longestRoadAwarded)
+}
+
 // MARK: - Special build phase (5-6 players)
 
 @Test
@@ -741,6 +842,31 @@ func specialBuildPhaseDoesNotStartAtThreePlayers() throws {
         return
     }
     #expect(id == "p2")
+}
+
+@Test
+func playerAlreadyAtTenPointsWinsWhenTheirNormalTurnBegins() throws {
+    var round: Round = try makeStandardRound(playerCount: 5)
+    autoSetup(&round)
+    round.playerHands[1].heldDevCards.append(contentsOf: (0..<8).map {
+        DevCard(id: 10_000 + $0, kind: .landmark)
+    })
+    for index in round.playerHands.indices {
+        round.playerHands[index].resources = [:]
+    }
+    round.state = .waitingForPlayer(id: "p1", phase: .main)
+    round.hasRolledDiceThisTurn = true
+
+    try round.endTurn()
+
+    #expect(round.victoryPoints(for: "p2") == Round.victoryPointsToWin)
+    guard case .gameComplete(let winner) = round.state else {
+        Issue.record("Expected p2 to win before rolling, got \(round.state)")
+        return
+    }
+    #expect(winner.id == "p2")
+    #expect(round.log.last?.playerID == "p2")
+    #expect(round.log.last?.decision == .winnerDeclared(playerID: "p2"))
 }
 
 // MARK: - AI
@@ -1096,6 +1222,22 @@ func largestArmyAwardedAtThreeRangers() throws {
     }
     round.checkLargestArmy()
     #expect(round.largestArmyHolder == "p1")
+}
+
+@Test
+func largestArmyAwardLogBelongsToAwardRecipient() throws {
+    var round: Round = try makeStandardRound(playerCount: 5)
+    autoSetup(&round)
+    round.state = .specialBuildPhase(originatingPlayerID: "p1", pending: ["p2"])
+    for i in 0..<Round.largestArmyMin {
+        round.playerHands[1].playedDevCards.append(DevCard(id: 11_000 + i, kind: .ranger))
+    }
+
+    round.checkLargestArmy()
+
+    #expect(round.largestArmyHolder == "p2")
+    #expect(round.log.last?.playerID == "p2")
+    #expect(round.log.last?.decision == .largestArmyAwarded)
 }
 
 // MARK: - AI info-hiding structural check

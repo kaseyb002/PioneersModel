@@ -289,6 +289,7 @@ extension Round {
     mutating func advanceToNextPlayer(afterPlayerID playerID: PlayerID) {
         guard let nextID: PlayerID = nextPlayerID(after: playerID) else { return }
         state = .waitingForPlayer(id: nextID, phase: .beforeRoll)
+        checkWin()
     }
 
     // MARK: - Build Actor Identification

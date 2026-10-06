@@ -25,31 +25,29 @@ extension Round {
 
     // MARK: - Longest Road (trails)
 
-    /// Returns (playerID, length) for the player with the longest contiguous trail (>= 5 edges),
-    /// or nil if no player qualifies.
+    /// Returns (playerID, length) when one player has the uniquely longest contiguous trail
+    /// (>= 5 edges), or nil if no player qualifies or the lead is tied.
     public func longestRoadCandidate() -> (playerID: PlayerID, length: Int)? {
-        var best: (PlayerID, Int)?
-        for hand in playerHands {
+        let qualifying: [(playerID: PlayerID, length: Int)] = playerHands.compactMap { hand in
             let length: Int = longestTrailLength(for: hand.player.id)
-            if length >= Self.longestRoadMin {
-                if let cur: (PlayerID, Int) = best {
-                    if length > cur.1 { best = (hand.player.id, length) }
-                } else {
-                    best = (hand.player.id, length)
-                }
-            }
+            return length >= Self.longestRoadMin ? (hand.player.id, length) : nil
         }
-        return best
+        guard let longestLength: Int = qualifying.map(\.length).max() else { return nil }
+        let leaders = qualifying.filter { $0.length == longestLength }
+        return leaders.count == 1 ? leaders[0] : nil
     }
 
     /// Update `longestRoadHolder` after a trail-related change. Ties keep the current holder.
     mutating func checkLongestRoad() {
         let previousHolder: PlayerID? = longestRoadHolder
         guard let candidate: (PlayerID, Int) = longestRoadCandidate() else {
-            // If no one qualifies, previous holder may still hold their own road if they themselves
-            // still have 5+; in all other cases the bonus is removed.
             if let holder: PlayerID = previousHolder {
-                if longestTrailLength(for: holder) >= Self.longestRoadMin {
+                let holderLength: Int = longestTrailLength(for: holder)
+                let longestLength: Int = playerHands
+                    .map { longestTrailLength(for: $0.player.id) }
+                    .max() ?? 0
+                // The incumbent keeps the bonus when tied for the qualifying lead.
+                if holderLength >= Self.longestRoadMin, holderLength == longestLength {
                     return
                 }
                 longestRoadHolder = nil
@@ -65,8 +63,7 @@ extension Round {
 
         if longestRoadHolder != candidate.0 {
             longestRoadHolder = candidate.0
-            let activeID: PlayerID = activeTurnPlayerID ?? candidate.0
-            logAction(playerID: activeID, decision: .longestRoadAwarded)
+            logAction(playerID: candidate.0, decision: .longestRoadAwarded)
         }
     }
 
@@ -145,8 +142,7 @@ extension Round {
 
         if largestArmyHolder != best.0 {
             largestArmyHolder = best.0
-            let activeID: PlayerID = activeTurnPlayerID ?? best.0
-            logAction(playerID: activeID, decision: .largestArmyAwarded)
+            logAction(playerID: best.0, decision: .largestArmyAwarded)
         }
     }
 
