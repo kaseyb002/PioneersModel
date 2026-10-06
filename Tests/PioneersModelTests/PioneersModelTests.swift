@@ -563,6 +563,9 @@ func specialBuildPhaseStartsAtFivePlayers() throws {
     var round: Round = try makeStandardRound(playerCount: 5, cookedDiceRolls: [5])
     autoSetup(&round)
     _ = try round.rollDice()
+    for index in 1..<round.playerHands.count {
+        round.playerHands[index].resources = Round.devCardCost
+    }
     try round.endTurn()
     guard case .specialBuildPhase(let origin, let pending) = round.state else {
         Issue.record("Expected special build phase, got \(round.state)")
@@ -571,6 +574,128 @@ func specialBuildPhaseStartsAtFivePlayers() throws {
     #expect(origin == "p1")
     #expect(pending.count == 4)
     #expect(pending.contains("p1") == false)
+}
+
+@Test
+func specialBuildAutomaticallyPassesPlayersWithoutLegalActions() throws {
+    var round: Round = try makeStandardRound(playerCount: 5, cookedDiceRolls: [5])
+    autoSetup(&round)
+    _ = try round.rollDice()
+    for index in round.playerHands.indices {
+        round.playerHands[index].resources = [:]
+    }
+
+    try round.endTurn()
+
+    guard case .waitingForPlayer(let id, .beforeRoll) = round.state else {
+        Issue.record("Expected the next normal turn, got \(round.state)")
+        return
+    }
+    #expect(id == "p2")
+    let automaticPasses = round.log.suffix(4).map(\.decision)
+    #expect(automaticPasses == Array(repeating: .specialBuildPass, count: 4))
+}
+
+@Test
+func specialBuildAutomaticallySkipsOnlyIneligibleQueueHeads() throws {
+    var round: Round = try makeStandardRound(playerCount: 5, cookedDiceRolls: [5])
+    autoSetup(&round)
+    _ = try round.rollDice()
+    for index in round.playerHands.indices {
+        round.playerHands[index].resources = [:]
+    }
+    round.playerHands[2].resources = Round.devCardCost
+
+    try round.endTurn()
+
+    guard case .specialBuildPhase(let origin, let pending) = round.state else {
+        Issue.record("Expected special build phase, got \(round.state)")
+        return
+    }
+    #expect(origin == "p1")
+    #expect(pending.first == "p3")
+    #expect(round.log.last?.playerID == "p2")
+    #expect(round.log.last?.decision == .specialBuildPass)
+}
+
+@Test
+func buyingCardDuringSpecialBuildAdvancesToNextEligiblePlayer() throws {
+    var round: Round = try makeStandardRound(playerCount: 5, cookedDiceRolls: [5])
+    autoSetup(&round)
+    _ = try round.rollDice()
+    for index in round.playerHands.indices {
+        round.playerHands[index].resources = [:]
+    }
+    round.playerHands[1].resources = Round.devCardCost
+    round.playerHands[2].resources = Round.devCardCost
+    try round.endTurn()
+
+    try round.buyDevCard()
+
+    guard case .specialBuildPhase(_, let pending) = round.state else {
+        Issue.record("Expected special build phase, got \(round.state)")
+        return
+    }
+    #expect(pending.first == "p3")
+    #expect(pending.contains("p2") == false)
+}
+
+@Test
+func everyBoardBuildDuringSpecialBuildAdvancesToNextEligiblePlayer() throws {
+    var baseRound: Round = try makeStandardRound(playerCount: 5)
+    autoSetup(&baseRound)
+    baseRound.playerHands[2].resources = Round.devCardCost
+
+    var trailRound = baseRound
+    trailRound.playerHands[1].resources = Round.trailCost
+    trailRound.state = .specialBuildPhase(originatingPlayerID: "p1", pending: ["p2", "p3"])
+    guard let edgeID = trailRound.edges.first(where: {
+        trailRound.canPlaceTrail(at: $0.id, forPlayerID: "p2")
+    })?.id else {
+        Issue.record("Expected a legal trail for p2")
+        return
+    }
+    try trailRound.buildTrail(edgeID: edgeID)
+    #expect(trailRound.currentPlayerID == "p3")
+
+    var homesteadRound = baseRound
+    homesteadRound.playerHands[1].resources = Round.homesteadCost
+    homesteadRound.state = .specialBuildPhase(originatingPlayerID: "p1", pending: ["p2", "p3"])
+    func reachableHomestead(in round: Round) -> VertexID? {
+        round.vertices.first(where: { vertex in
+            round.canPlaceHomestead(at: vertex.id) &&
+                vertex.adjacentEdgeIDs.contains {
+                    round.trail(at: $0)?.ownerID == "p2"
+                }
+        })?.id
+    }
+    var extensionsRemaining = 10
+    while reachableHomestead(in: homesteadRound) == nil,
+          extensionsRemaining > 0,
+          let edgeID = homesteadRound.edges.first(where: {
+              homesteadRound.canPlaceTrail(at: $0.id, forPlayerID: "p2")
+          })?.id {
+        homesteadRound.trails.append(Trail(ownerID: "p2", edgeID: edgeID))
+        extensionsRemaining -= 1
+    }
+    guard let vertexID = reachableHomestead(in: homesteadRound) else {
+        Issue.record("Expected a legal homestead for p2")
+        return
+    }
+    try homesteadRound.buildHomestead(vertexID: vertexID)
+    #expect(homesteadRound.currentPlayerID == "p3")
+
+    var townRound = baseRound
+    townRound.playerHands[1].resources = Round.townCost
+    townRound.state = .specialBuildPhase(originatingPlayerID: "p1", pending: ["p2", "p3"])
+    guard let homesteadID = townRound.buildings.first(where: {
+        $0.ownerID == "p2" && $0.kind == .homestead
+    })?.vertexID else {
+        Issue.record("Expected an upgradeable homestead for p2")
+        return
+    }
+    try townRound.upgradeToTown(vertexID: homesteadID)
+    #expect(townRound.currentPlayerID == "p3")
 }
 
 @Test

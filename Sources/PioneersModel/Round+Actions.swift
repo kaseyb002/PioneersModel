@@ -82,6 +82,7 @@ extension Round {
         let builderID: PlayerID
         let isFree: Bool
         var isPathfinderStep: Bool = false
+        let isSpecialBuildAction: Bool
 
         switch state {
         case .waitingForPlayer(let id, let phase):
@@ -89,10 +90,12 @@ extension Round {
             case .main:
                 builderID = id
                 isFree = false
+                isSpecialBuildAction = false
             case .playingPathfinder:
                 builderID = id
                 isFree = true
                 isPathfinderStep = true
+                isSpecialBuildAction = false
             default:
                 throw PioneersModelError.notInMainPhase
             }
@@ -102,6 +105,7 @@ extension Round {
             }
             builderID = id
             isFree = false
+            isSpecialBuildAction = true
         default:
             throw PioneersModelError.notInMainPhase
         }
@@ -142,12 +146,16 @@ extension Round {
         }
         checkLongestRoad()
         checkWin()
+        if isSpecialBuildAction, isComplete == false {
+            completeSpecialBuildAction(playerID: builderID)
+        }
     }
 
     // MARK: - Build Homestead
 
     public mutating func buildHomestead(vertexID: VertexID) throws {
         guard isComplete == false else { throw PioneersModelError.gameIsComplete }
+        let isSpecialBuildAction: Bool = isSpecialBuildPhase
         let builderID: PlayerID = try currentBuildActorID()
 
         guard let handIdx: Int = playerIndex(of: builderID) else {
@@ -180,12 +188,16 @@ extension Round {
 
         checkLongestRoad()
         checkWin()
+        if isSpecialBuildAction, isComplete == false {
+            completeSpecialBuildAction(playerID: builderID)
+        }
     }
 
     // MARK: - Upgrade to Town
 
     public mutating func upgradeToTown(vertexID: VertexID) throws {
         guard isComplete == false else { throw PioneersModelError.gameIsComplete }
+        let isSpecialBuildAction: Bool = isSpecialBuildPhase
         let builderID: PlayerID = try currentBuildActorID()
 
         guard let b: Building = building(at: vertexID) else {
@@ -212,12 +224,16 @@ extension Round {
         logAction(playerID: builderID, decision: .upgradedToTown(vertexID: vertexID))
 
         checkWin()
+        if isSpecialBuildAction, isComplete == false {
+            completeSpecialBuildAction(playerID: builderID)
+        }
     }
 
     // MARK: - Buy Dev Card
 
     public mutating func buyDevCard() throws {
         guard isComplete == false else { throw PioneersModelError.gameIsComplete }
+        let isSpecialBuildAction: Bool = isSpecialBuildPhase
         let buyerID: PlayerID = try currentBuildActorID()
 
         guard devCardDeck.isEmpty == false else {
@@ -235,6 +251,9 @@ extension Round {
 
         // Buying a landmark immediately bumps total VP; check for win.
         checkWin()
+        if isSpecialBuildAction, isComplete == false {
+            completeSpecialBuildAction(playerID: buyerID)
+        }
     }
 
     // MARK: - End Turn
