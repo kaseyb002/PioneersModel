@@ -393,6 +393,9 @@ public struct AIEngine: Sendable {
     }
 
     private func choosePathfinderTrail(round: Round, playerID: PlayerID, remaining: Int) -> AIAction {
+        guard round.playerHand(for: playerID)?.remainingTrails ?? 0 > 0 else {
+            return .resolvePathfinderEarly
+        }
         if let eid: EdgeID = chooseExpansionTrail(round: round, playerID: playerID) {
             return .buildTrail(edgeID: eid)
         }

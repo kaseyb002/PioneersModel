@@ -905,6 +905,19 @@ func aiCanDriveASetupPhase() throws {
     #expect(round.isSetup == false)
 }
 
+@Test
+func aiEndsPathfinderWhenOutOfTrailPieces() throws {
+    var round: Round = try makeStandardRound(playerCount: 3)
+    autoSetup(&round)
+    round.playerHands[0].remainingTrails = 0
+    round.state = .waitingForPlayer(id: "p1", phase: .playingPathfinder(remainingTrails: 2))
+    let engine: AIEngine = AIEngine(difficulty: .hard)
+
+    #expect(engine.chooseAction(for: round, playerID: "p1") == .resolvePathfinderEarly)
+    try engine.makeMove(on: &round, playerID: "p1")
+    #expect(round.state == .waitingForPlayer(id: "p1", phase: .beforeRoll))
+}
+
 // MARK: - Full play-through
 
 @Test
