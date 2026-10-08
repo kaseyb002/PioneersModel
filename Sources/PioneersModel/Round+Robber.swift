@@ -19,6 +19,9 @@ extension Round {
 
         let total: Int = playerHands[handIdx].totalResourceCount
         let required: Int = total / 2
+        guard resources.values.allSatisfy({ $0 >= 0 }) else {
+            throw PioneersModelError.wrongDiscardAmount
+        }
         let offered: Int = resources.values.reduce(0, +)
         guard offered == required else {
             throw PioneersModelError.wrongDiscardAmount

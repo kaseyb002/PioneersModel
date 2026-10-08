@@ -8,6 +8,8 @@ extension Round {
     ///   - started: Start timestamp. Defaults to `.now`.
     ///   - players: 3-6 players with distinct IDs and colors. Seats/turn order follows array order.
     ///   - numberTokenLayout: Number-token placement policy. Defaults to the official spiral setup.
+    ///   - expansionRuleSet: Five/six-player turn rules. Defaults to revised paired players.
+    ///     Choose `.specialBuilding` for the original rules. Has no effect at three/four players.
     ///   - cookedMap: When non-nil, use this GameMap exactly (no selection between standard/expansion).
     ///   - cookedNumberTokenOrder: Non-nil disables number-token shuffling; list must contain one
     ///     token per non-desert tile (in the order those tiles appear in `tiles`).
@@ -19,6 +21,7 @@ extension Round {
         started: Date = .now,
         players: [Player],
         numberTokenLayout: NumberTokenLayout = .standardSpiral,
+        expansionRuleSet: ExpansionRuleSet = .pairedPlayers,
         cookedMap: GameMap? = nil,
         cookedNumberTokenOrder: [Int]? = nil,
         cookedDevCardDeck: [DevCard]? = nil,
@@ -74,6 +77,8 @@ extension Round {
 
         let deck: [DevCard] = cookedDevCardDeck ?? baseMap.devCardDeck.shuffled()
 
+        self.selectedExpansionRuleSet = expansionRuleSet
+        self.pairedTurnOriginatingPlayerID = nil
         self.id = id
         self.started = started
         self.ended = nil

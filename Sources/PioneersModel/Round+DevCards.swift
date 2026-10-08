@@ -36,6 +36,16 @@ extension Round {
             throw PioneersModelError.alreadyPlayedDevCardThisTurn
         }
 
+        // Validate card-specific input before consuming the card or changing turn state.
+        switch card.kind {
+        case .roundup:
+            guard resource != nil else { throw PioneersModelError.invalidTradeOffer }
+        case .bountifulHarvest:
+            guard pickedResources?.count == 2 else { throw PioneersModelError.invalidTradeOffer }
+        case .ranger, .pathfinder, .landmark:
+            break
+        }
+
         // Remove the card and mark it played.
         playerHands[handIdx].heldDevCards.remove(at: cardIdx)
         playerHands[handIdx].playedDevCards.append(card)

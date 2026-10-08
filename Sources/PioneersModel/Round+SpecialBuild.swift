@@ -4,8 +4,8 @@ extension Round {
     // MARK: - Special Build Phase (5-6 players)
 
     /// Triggered by `endTurn()` when player count >= 5. Non-active players rotate starting from
-    /// the one after the player who just ended their turn. Each one may perform at most one build
-    /// action (trail, homestead, town, or dev-card buy) or pass. They may not roll, trade, or play
+    /// the one after the player who just ended their turn. Each one may perform any number of build
+    /// actions (trail, homestead, town, or dev-card buy) or pass. They may not roll, trade, or play
     /// dev cards.
     mutating func startSpecialBuildPhase(afterPlayerID playerID: PlayerID) {
         guard let startIdx: Int = playerIndex(of: playerID) else {
@@ -64,18 +64,17 @@ extension Round {
         return canBuildTrail || canBuildHomestead || canUpgradeTown || canBuyDevCard
     }
 
-    /// Consumes the acting player's one special-build opportunity after a successful purchase.
+    /// Keep the player in the queue while they can still build; otherwise pass automatically.
     mutating func completeSpecialBuildAction(playerID: PlayerID) {
-        guard case .specialBuildPhase(let origin, var pending) = state,
+        guard case .specialBuildPhase(let origin, let pending) = state,
               pending.first == playerID
         else { return }
 
-        pending.removeFirst()
         advanceSpecialBuildQueue(originatingPlayerID: origin, pending: pending)
     }
 
     /// Advances past players who have no legal special-build action. A player who can build remains
-    /// in the queue so they may choose between making one purchase and explicitly passing.
+    /// in the queue so they may choose between making another purchase and explicitly passing.
     private mutating func advanceSpecialBuildQueue(
         originatingPlayerID origin: PlayerID,
         pending: [PlayerID]

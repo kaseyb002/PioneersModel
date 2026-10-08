@@ -19,6 +19,7 @@ private func makeStandardRound(
     let map: GameMap = playerCount >= Round.expansionThreshold ? .expansion() : .standard()
     return try Round(
         players: players,
+        expansionRuleSet: .specialBuilding,
         cookedMap: map,
         cookedNumberTokenOrder: map.numberTokenBag,
         cookedDevCardDeck: map.devCardDeck,

@@ -32,6 +32,21 @@ public struct Round: Equatable, Codable, Sendable {
     public let started: Date
     public internal(set) var ended: Date?
 
+    /// Rules for the additional turns in games with five or six players.
+    public enum ExpansionRuleSet: String, Codable, CaseIterable, Sendable {
+        case specialBuilding
+        case pairedPlayers
+    }
+
+    // Optional storage preserves the rules of saved rounds created before this option existed.
+    internal var selectedExpansionRuleSet: ExpansionRuleSet?
+    public var expansionRuleSet: ExpansionRuleSet {
+        selectedExpansionRuleSet ?? .specialBuilding
+    }
+    /// The primary player's ID while the paired secondary player takes their turn.
+    public internal(set) var pairedTurnOriginatingPlayerID: PlayerID?
+    public var isPairedPlayerTurn: Bool { pairedTurnOriginatingPlayerID != nil }
+
     // MARK: - Board (from GameMap at init time)
 
     public let tiles: [Tile]
@@ -74,7 +89,7 @@ public struct Round: Equatable, Codable, Sendable {
         /// Snake-order setup: each player places 2 homesteads + 2 trails.
         case setup(pendingPlacements: [SetupPlacement])
         case waitingForPlayer(id: PlayerID, phase: TurnPhase)
-        /// Between turns at >=5 players: non-active players take a single build/pass each in rotation.
+        /// Between turns at >=5 players: non-active players build or pass in rotation.
         case specialBuildPhase(originatingPlayerID: PlayerID, pending: [PlayerID])
         case gameComplete(winner: Player)
 

@@ -17,6 +17,7 @@ extension Round {
         postedAt: Date = .now
     ) throws -> TradeOffer {
         guard isComplete == false else { throw PioneersModelError.gameIsComplete }
+        guard isPairedPlayerTurn == false else { throw PioneersModelError.notInMainPhase }
         guard case .waitingForPlayer(let activeID, .main) = state else {
             throw PioneersModelError.notInMainPhase
         }

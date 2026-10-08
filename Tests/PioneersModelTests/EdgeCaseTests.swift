@@ -189,12 +189,10 @@ func negativeDiscardCountsAreRejected() throws {
     round.playerHands[0].resources = [.wood: 8]
     _ = try round.rollDice()
     let before: Round = round
-    withKnownIssue("negative discard counts pass the half-hand check") {
-        #expect(throws: PioneersModelError.wrongDiscardAmount) {
-            try round.discardResources(playerID: "p1", resources: [.wood: 6, .brick: -2])
-        }
-        #expect(round == before)
+    #expect(throws: PioneersModelError.wrongDiscardAmount) {
+        try round.discardResources(playerID: "p1", resources: [.wood: 6, .brick: -2])
     }
+    #expect(round == before)
 }
 
 @Test
@@ -482,12 +480,10 @@ func roundupWithoutAResourceKeepsTheCard() throws {
     let card: DevCard = DevCard(id: 9100, kind: .roundup)
     round.playerHands[0].heldDevCards = [card]
     let before: Round = round
-    withKnownIssue("roundup without a resource consumes the card") {
-        #expect(throws: PioneersModelError.invalidTradeOffer) {
-            try round.playDevCard(id: card.id)
-        }
-        #expect(round == before)
+    #expect(throws: PioneersModelError.invalidTradeOffer) {
+        try round.playDevCard(id: card.id)
     }
+    #expect(round == before)
 }
 
 @Test
@@ -497,12 +493,10 @@ func bountifulHarvestWithOnePickKeepsTheCard() throws {
     let card: DevCard = DevCard(id: 9200, kind: .bountifulHarvest)
     round.playerHands[0].heldDevCards = [card]
     let before: Round = round
-    withKnownIssue("harvest with one resource consumes the card") {
-        #expect(throws: PioneersModelError.invalidTradeOffer) {
-            try round.playDevCard(id: card.id, pickedResources: [.wheat])
-        }
-        #expect(round == before)
+    #expect(throws: PioneersModelError.invalidTradeOffer) {
+        try round.playDevCard(id: card.id, pickedResources: [.wheat])
     }
+    #expect(round == before)
 }
 
 @Test

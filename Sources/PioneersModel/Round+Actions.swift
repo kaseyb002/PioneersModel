@@ -282,8 +282,22 @@ extension Round {
         }
         logAction(playerID: activeID, decision: .endedTurn)
 
-        if playerHands.count >= Self.expansionThreshold {
-            startSpecialBuildPhase(afterPlayerID: activeID)
+        if let origin = pairedTurnOriginatingPlayerID {
+            pairedTurnOriginatingPlayerID = nil
+            advanceToNextPlayer(afterPlayerID: origin)
+        } else if playerHands.count >= Self.expansionThreshold {
+            switch expansionRuleSet {
+            case .specialBuilding:
+                startSpecialBuildPhase(afterPlayerID: activeID)
+            case .pairedPlayers:
+                guard let index = playerIndex(of: activeID) else { return }
+                let secondaryID = playerHands[(index + 3) % playerHands.count].player.id
+                pairedTurnOriginatingPlayerID = activeID
+                // The secondary turn has no dice roll. This also returns dev-card resolutions to main.
+                hasRolledDiceThisTurn = true
+                state = .waitingForPlayer(id: secondaryID, phase: .main)
+                checkWin()
+            }
         } else {
             advanceToNextPlayer(afterPlayerID: activeID)
         }
