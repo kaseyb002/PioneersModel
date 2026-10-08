@@ -774,6 +774,33 @@ func buyingCardDuringSpecialBuildAdvancesToNextEligiblePlayer() throws {
 }
 
 @Test
+func specialBuildCardCanBePlayedBeforeRollingOnNextTurn() throws {
+    var round: Round = try makeStandardRound(playerCount: 5, cookedDiceRolls: [5])
+    autoSetup(&round)
+    _ = try round.rollDice()
+    for index in round.playerHands.indices {
+        round.playerHands[index].resources = [:]
+    }
+    round.playerHands[1].resources = Round.devCardCost
+    let card = DevCard(id: 9001, kind: .roundup)
+    round.devCardDeck = [card]
+    try round.endTurn()
+    #expect(round.isSpecialBuildPhase)
+
+    try round.buyDevCard()
+
+    #expect(round.state == .waitingForPlayer(id: "p2", phase: .beforeRoll))
+    round.playerHands[0].resources = [.wood: 2]
+    try round.playDevCard(id: card.id, resource: .wood)
+
+    #expect(round.playerHand(for: "p2")?.playedDevCards == [card])
+    #expect(round.playerHand(for: "p2")?.resources[.wood] == 2)
+    #expect(round.playerHand(for: "p1")?.resources[.wood] == nil)
+    #expect(round.state == .waitingForPlayer(id: "p2", phase: .beforeRoll))
+    #expect(round.hasRolledDiceThisTurn == false)
+}
+
+@Test
 func everyBoardBuildDuringSpecialBuildAdvancesToNextEligiblePlayer() throws {
     var baseRound: Round = try makeStandardRound(playerCount: 5)
     autoSetup(&baseRound)

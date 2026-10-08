@@ -246,7 +246,10 @@ extension Round {
         try spendResources(Self.devCardCost, fromPlayerID: buyerID)
         let card: DevCard = devCardDeck.removeFirst()
         playerHands[handIdx].heldDevCards.append(card)
-        playerHands[handIdx].devCardIDsPurchasedThisTurn.append(card.id)
+        // Special-build purchases are playable on the buyer's next normal turn.
+        if isSpecialBuildAction == false {
+            playerHands[handIdx].devCardIDsPurchasedThisTurn.append(card.id)
+        }
         logAction(playerID: buyerID, decision: .boughtDevCard)
 
         // Buying a landmark immediately bumps total VP; check for win.
