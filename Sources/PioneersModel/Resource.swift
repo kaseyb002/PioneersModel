@@ -17,3 +17,15 @@ public enum Resource: String, Equatable, Codable, CaseIterable, Hashable, Sendab
         }
     }
 }
+
+extension Resource {
+    public var displaySortOrder: Int {
+        switch self {
+        case .wood: 0
+        case .brick: 1
+        case .wheat: 2
+        case .sheep: 3
+        case .ore: 4
+        }
+    }
+}
