@@ -29,3 +29,9 @@ extension Resource {
         }
     }
 }
+
+extension [Resource] {
+    public var sortedForDisplay: [Resource] {
+        sorted { $0.displaySortOrder < $1.displaySortOrder }
+    }
+}
