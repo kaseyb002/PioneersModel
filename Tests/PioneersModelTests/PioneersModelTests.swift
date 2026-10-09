@@ -1302,3 +1302,69 @@ func roundIsCodableRoundTrip() throws {
     #expect(decoded.edges.count == round.edges.count)
     #expect(decoded.playerHands.count == round.playerHands.count)
 }
+
+@Test
+func declinesAreInformationalAndDoNotPreventAcceptance() throws {
+    var round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
+    autoSetup(&round)
+    _ = try round.rollDice()
+    round.playerHands[0].resources = [.wood: 2]
+    round.playerHands[1].resources = [.brick: 2]
+    let offer = try round.postTradeOffer(give: [.wood: 1], receive: [.brick: 1])
+    let state = round.state
+    let hands = round.playerHands
+    let log = round.log
+
+    try round.declineTradeOffer(offerID: offer.id, byPlayerID: "p2")
+    try round.declineTradeOffer(offerID: offer.id, byPlayerID: "p2")
+    try round.declineTradeOffer(offerID: offer.id, byPlayerID: "p3")
+    #expect(round.openTradeOffer?.declines == ["p2", "p3"])
+    #expect(round.state == state)
+    #expect(round.playerHands == hands)
+    #expect(round.log == log)
+
+    try round.acceptTradeOffer(offerID: offer.id, byPlayerID: "p2")
+    #expect(round.openTradeOffer == nil)
+    #expect(round.state == state)
+    #expect(round.playerHand(for: "p2")?.resources == [.brick: 1, .wood: 1])
+}
+
+@Test
+func declineValidatesOfferAndEligibility() throws {
+    var round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
+    autoSetup(&round)
+    _ = try round.rollDice()
+    #expect(throws: PioneersModelError.noOpenTradeOffer) {
+        try round.declineTradeOffer(offerID: 1, byPlayerID: "p2")
+    }
+    round.playerHands[0].resources = [.wood: 2]
+    let offer = try round.postTradeOffer(
+        give: [.wood: 1], receive: [.brick: 1], eligibleAcceptors: ["p2"]
+    )
+    #expect(throws: PioneersModelError.tradeOfferIDMismatch) {
+        try round.declineTradeOffer(offerID: offer.id + 1, byPlayerID: "p2")
+    }
+    for playerID in ["p1", "p3", "unknown"] {
+        #expect(throws: PioneersModelError.notEligibleToAcceptOffer) {
+            try round.declineTradeOffer(offerID: offer.id, byPlayerID: playerID)
+        }
+    }
+    #expect(round.openTradeOffer == offer)
+    try round.declineTradeOffer(offerID: offer.id, byPlayerID: "p2")
+    let replacement = try round.postTradeOffer(give: [.wood: 1], receive: [.brick: 1])
+    #expect(replacement.declines.isEmpty)
+}
+
+@Test
+func tradeOfferDeclinesPersistAndOlderOffersDecode() throws {
+    let offer = TradeOffer.fake(declines: ["p2"])
+    let encoded = try JSONEncoder().encode(offer)
+    #expect(try JSONDecoder().decode(TradeOffer.self, from: encoded) == offer)
+    var json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+    json.removeValue(forKey: "declines")
+    let legacy = try JSONSerialization.data(withJSONObject: json)
+    let decoded = try JSONDecoder().decode(TradeOffer.self, from: legacy)
+    #expect(decoded.declines.isEmpty)
+    #expect(decoded.id == offer.id)
+    #expect(decoded.eligibleAcceptors == offer.eligibleAcceptors)
+}

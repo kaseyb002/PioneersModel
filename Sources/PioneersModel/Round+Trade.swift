@@ -77,6 +77,19 @@ extension Round {
         logAction(playerID: activeID, decision: .cancelledTradeOffer(id: offer.id))
     }
 
+    /// Records an eligible player's decline without closing the offer or changing the turn.
+    /// Repeated declines are harmless, and the player may still accept this offer later.
+    public mutating func declineTradeOffer(offerID: TradeOfferID, byPlayerID playerID: PlayerID) throws {
+        guard isComplete == false else { throw PioneersModelError.gameIsComplete }
+        guard var offer = openTradeOffer else { throw PioneersModelError.noOpenTradeOffer }
+        guard offer.id == offerID else { throw PioneersModelError.tradeOfferIDMismatch }
+        guard offer.eligibleAcceptors.contains(playerID) else {
+            throw PioneersModelError.notEligibleToAcceptOffer
+        }
+        offer.declines.insert(playerID)
+        openTradeOffer = offer
+    }
+
     /// An eligible non-active player accepts the open offer. `offerID` must match the current
     /// open offer (prevents accepting a stale offer). Resources swap atomically, the offer clears,
     /// and the turn remains in `.main` for the active player.
