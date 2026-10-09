@@ -78,6 +78,7 @@ extension Round {
     /// `.playingPathfinder` (free), or during the special-build phase.
     public mutating func buildTrail(edgeID: EdgeID) throws {
         guard isComplete == false else { throw PioneersModelError.gameIsComplete }
+        guard openTradeOffer == nil else { throw PioneersModelError.tradeOfferIsOpen }
 
         let builderID: PlayerID
         let isFree: Bool
@@ -155,6 +156,7 @@ extension Round {
 
     public mutating func buildHomestead(vertexID: VertexID) throws {
         guard isComplete == false else { throw PioneersModelError.gameIsComplete }
+        guard openTradeOffer == nil else { throw PioneersModelError.tradeOfferIsOpen }
         let isSpecialBuildAction: Bool = isSpecialBuildPhase
         let builderID: PlayerID = try currentBuildActorID()
 
@@ -197,6 +199,7 @@ extension Round {
 
     public mutating func upgradeToTown(vertexID: VertexID) throws {
         guard isComplete == false else { throw PioneersModelError.gameIsComplete }
+        guard openTradeOffer == nil else { throw PioneersModelError.tradeOfferIsOpen }
         let isSpecialBuildAction: Bool = isSpecialBuildPhase
         let builderID: PlayerID = try currentBuildActorID()
 
@@ -233,6 +236,7 @@ extension Round {
 
     public mutating func buyDevCard() throws {
         guard isComplete == false else { throw PioneersModelError.gameIsComplete }
+        guard openTradeOffer == nil else { throw PioneersModelError.tradeOfferIsOpen }
         let isSpecialBuildAction: Bool = isSpecialBuildPhase
         let buyerID: PlayerID = try currentBuildActorID()
 

@@ -34,6 +34,8 @@ public enum PioneersModelError: Error, Equatable, Sendable {
     case cannotPlayLandmark
     case invalidResourceCount
     case invalidTradeOffer
+    /// Cancel or resolve the open offer before taking other turn actions.
+    case tradeOfferIsOpen
     case noOpenTradeOffer
     case cannotAcceptOwnOffer
     case notEligibleToAcceptOffer

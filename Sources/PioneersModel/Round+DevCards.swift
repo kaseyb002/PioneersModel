@@ -8,6 +8,7 @@ extension Round {
     /// per turn. A dev card may also be played before rolling the dice.
     public mutating func playDevCard(id: DevCardID, resource: Resource? = nil, pickedResources: [Resource]? = nil) throws {
         guard isComplete == false else { throw PioneersModelError.gameIsComplete }
+        guard openTradeOffer == nil else { throw PioneersModelError.tradeOfferIsOpen }
         guard case .waitingForPlayer(let activeID, let phase) = state else {
             throw PioneersModelError.notWaitingForPlayerToAct
         }

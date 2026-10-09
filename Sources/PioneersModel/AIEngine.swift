@@ -172,6 +172,7 @@ public struct AIEngine: Sendable {
     }
 
     private func chooseMainAction(round: Round, playerID: PlayerID) -> AIAction? {
+        guard round.openTradeOffer == nil else { return .endTurn }
         guard let hand: PlayerHand = round.playerHand(for: playerID) else { return .endTurn }
 
         // 1. Town upgrade (most valuable VP gain).

@@ -133,6 +133,7 @@ extension Round {
 
     public mutating func bankTrade(give: Resource, for want: Resource) throws {
         guard isComplete == false else { throw PioneersModelError.gameIsComplete }
+        guard openTradeOffer == nil else { throw PioneersModelError.tradeOfferIsOpen }
         guard case .waitingForPlayer(let activeID, .main) = state else {
             throw PioneersModelError.notInMainPhase
         }
@@ -155,6 +156,7 @@ extension Round {
 
     public mutating func portTrade(portID: PortID, give: Resource, for want: Resource) throws {
         guard isComplete == false else { throw PioneersModelError.gameIsComplete }
+        guard openTradeOffer == nil else { throw PioneersModelError.tradeOfferIsOpen }
         guard case .waitingForPlayer(let activeID, .main) = state else {
             throw PioneersModelError.notInMainPhase
         }

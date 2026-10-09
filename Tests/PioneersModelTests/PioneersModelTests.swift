@@ -1368,3 +1368,55 @@ func tradeOfferDeclinesPersistAndOlderOffersDecode() throws {
     #expect(decoded.id == offer.id)
     #expect(decoded.eligibleAcceptors == offer.eligibleAcceptors)
 }
+
+@Test
+func openTradeOfferBlocksOtherTurnActionsWithoutMutatingRound() throws {
+    var round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
+    autoSetup(&round)
+    _ = try round.rollDice()
+    round.playerHands[0].resources = Dictionary(uniqueKeysWithValues: Resource.allCases.map { ($0, 10) })
+    round.playerHands[0].heldDevCards = [DevCard(id: 9001, kind: .ranger)]
+    let offer = try round.postTradeOffer(give: [.wood: 10], receive: [.brick: 1])
+    let edgeID = try #require(round.edges.first { round.canPlaceTrail(at: $0.id, forPlayerID: "p1") }?.id)
+    let vertexID = try #require(round.buildings.first { $0.ownerID == "p1" }?.vertexID)
+    let portID = try #require(round.ports.first?.id)
+    let snapshot = round
+    let actions: [(inout Round) throws -> Void] = [
+        { try $0.buildTrail(edgeID: edgeID) },
+        { try $0.buildHomestead(vertexID: vertexID) },
+        { try $0.upgradeToTown(vertexID: vertexID) },
+        { try $0.buyDevCard() },
+        { try $0.bankTrade(give: .wood, for: .brick) },
+        { try $0.portTrade(portID: portID, give: .wood, for: .brick) },
+        { try $0.playDevCard(id: 9001) },
+    ]
+    for action in actions {
+        #expect(throws: PioneersModelError.tradeOfferIsOpen) { try action(&round) }
+        #expect(round == snapshot)
+    }
+    try round.declineTradeOffer(offerID: offer.id, byPlayerID: "p2")
+    try round.declineTradeOffer(offerID: offer.id, byPlayerID: "p3")
+    #expect(throws: PioneersModelError.tradeOfferIsOpen) { try round.buildTrail(edgeID: edgeID) }
+    try round.cancelTradeOffer()
+    try round.buildTrail(edgeID: edgeID)
+    #expect(round.playerHand(for: "p1")?.resources[.wood] == 9)
+}
+
+@Test
+func openTradeOfferCanBeReplacedAcceptedOrClearedByEndingTurn() throws {
+    var round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
+    autoSetup(&round)
+    _ = try round.rollDice()
+    round.playerHands[0].resources = [.wood: 10]
+    round.playerHands[1].resources = [.brick: 2]
+    let first = try round.postTradeOffer(give: [.wood: 1], receive: [.brick: 1])
+    let replacement = try round.postTradeOffer(give: [.wood: 2], receive: [.brick: 1])
+    #expect(first.id != replacement.id)
+    var endingRound = round
+    #expect(AIEngine(difficulty: .easy).chooseAction(for: endingRound, playerID: "p1") == .endTurn)
+    try endingRound.endTurn()
+    #expect(endingRound.openTradeOffer == nil)
+    try round.acceptTradeOffer(offerID: replacement.id, byPlayerID: "p2")
+    try round.bankTrade(give: .wood, for: .ore)
+    #expect(round.playerHand(for: "p1")?.resources[.wood] == 4)
+}
