@@ -1408,17 +1408,16 @@ func declineValidatesOfferAndEligibility() throws {
 }
 
 @Test
-func tradeOfferDeclinesPersistAndOlderOffersDecode() throws {
+func tradeOfferDeclinesPersistAndOlderOffersAreRejected() throws {
     let offer = TradeOffer.fake(declines: ["p2"])
     let encoded = try JSONEncoder().encode(offer)
     #expect(try JSONDecoder().decode(TradeOffer.self, from: encoded) == offer)
     var json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
     json.removeValue(forKey: "declines")
     let legacy = try JSONSerialization.data(withJSONObject: json)
-    let decoded = try JSONDecoder().decode(TradeOffer.self, from: legacy)
-    #expect(decoded.declines.isEmpty)
-    #expect(decoded.id == offer.id)
-    #expect(decoded.eligibleAcceptors == offer.eligibleAcceptors)
+    #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(TradeOffer.self, from: legacy)
+    }
 }
 
 @Test

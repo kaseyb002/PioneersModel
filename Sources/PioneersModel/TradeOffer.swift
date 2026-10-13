@@ -45,16 +45,7 @@ public struct TradeOffer: Equatable, Codable, Identifiable, Sendable {
         self.posted = posted
     }
 
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(TradeOfferID.self, forKey: .id)
-        fromPlayerID = try container.decode(PlayerID.self, forKey: .fromPlayerID)
-        give = try container.decode([Resource: Int].self, forKey: .give)
-        receive = try container.decode([Resource: Int].self, forKey: .receive)
-        eligibleAcceptors = try container.decode(Set<PlayerID>.self, forKey: .eligibleAcceptors)
-        declines = try container.decodeIfPresent(Set<PlayerID>.self, forKey: .declines) ?? []
-        posted = try container.decode(Date.self, forKey: .posted)
-    }
+
 }
 
 extension TradeOffer {

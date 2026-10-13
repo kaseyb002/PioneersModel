@@ -227,6 +227,16 @@ import Testing
         assertConservation(round)
     }
 
+    @Test func roundsWithoutCardIdentityMapsAreRejected() throws {
+        let data = try JSONEncoder().encode(Round.fakeInProgress())
+        var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "resourcesMap")
+        let oldData = try JSONSerialization.data(withJSONObject: object)
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(Round.self, from: oldData)
+        }
+    }
+
     @Test func harvestCanTakeSoleRemainingBankCard() throws {
         var round = mainRound()
         let card = try #require(round.devCardDeck.first { round.devCardsMap[$0]?.kind == .bountifulHarvest })

@@ -76,7 +76,9 @@ func savedRoundsPreserveRulesAndPairedTurn() throws {
     object.removeValue(forKey: "selectedExpansionRuleSet")
     object.removeValue(forKey: "pairedTurnOriginatingPlayerID")
     let oldData = try JSONSerialization.data(withJSONObject: object)
-    #expect(try JSONDecoder().decode(Round.self, from: oldData).expansionRuleSet == .specialBuilding)
+    #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(Round.self, from: oldData)
+    }
 }
 
 @Test

@@ -38,10 +38,9 @@ public struct Round: Equatable, Codable, Sendable {
         case pairedPlayers
     }
 
-    // Optional storage preserves the rules of saved rounds created before this option existed.
-    internal var selectedExpansionRuleSet: ExpansionRuleSet?
+    internal var selectedExpansionRuleSet: ExpansionRuleSet
     public var expansionRuleSet: ExpansionRuleSet {
-        selectedExpansionRuleSet ?? .specialBuilding
+        selectedExpansionRuleSet
     }
     /// The primary player's ID while the paired secondary player takes their turn.
     public internal(set) var pairedTurnOriginatingPlayerID: PlayerID?
