@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 
 extension Round {
     enum CodingKeys: String, CodingKey {
@@ -58,75 +57,10 @@ extension Round {
         self.cookedStealChoices = try container.decode([Resource].self, forKey: .cookedStealChoices)
         self.state = try container.decode(State.self, forKey: .state)
         self.log = try container.decode([Action].self, forKey: .log)
-        if container.contains(.resourcesMap) {
-            self.resourcesMap = try container.decode([ResourceID: Resource].self, forKey: .resourcesMap)
-            self.bankResourceIDs = try container.decode([ResourceID].self, forKey: .bankResourceIDs)
-            self.devCardsMap = try container.decode([DevCardID: DevCard].self, forKey: .devCardsMap)
-            self.devCardDeck = try container.decode([DevCardID].self, forKey: .devCardDeck)
-            self.playerHands = try container.decode([PlayerHand].self, forKey: .playerHands)
-        } else {
-            let hands = try container.decode([LegacyPlayerHand].self, forKey: .playerHands)
-            let deck = try container.decode([DevCard].self, forKey: .devCardDeck)
-            self.resourcesMap = [:]
-            self.bankResourceIDs = []
-            self.devCardsMap = [:]
-            self.devCardDeck = deck.map(\.id)
-            self.playerHands = hands.map { hand in
-                PlayerHand(player: hand.player,
-                           heldDevCardIDs: hand.heldDevCards.map(\.id),
-                           playedDevCardIDs: hand.playedDevCards.map(\.id),
-                           devCardIDsPurchasedThisTurn: hand.devCardIDsPurchasedThisTurn,
-                           remainingHomesteads: hand.remainingHomesteads,
-                           remainingTowns: hand.remainingTowns,
-                           remainingTrails: hand.remainingTrails)
-            }
-            for card in deck + hands.flatMap({ $0.heldDevCards + $0.playedDevCards }) {
-                if let existing = devCardsMap[card.id], existing != card {
-                    throw DecodingError.dataCorruptedError(forKey: .devCardDeck, in: container, debugDescription: "Conflicting development card identities")
-                }
-                devCardsMap[card.id] = card
-            }
-            // Migration is deterministic so decoding the same saved round on two
-            // machines produces the same card identities. Preserve existing hands,
-            // even if the old unlimited bank issued more than the physical supply.
-            let supply = hands.count >= Self.expansionThreshold ? 24 : 19
-            for resource in Resource.allCases {
-                var ordinal = 0
-                for index in hands.indices {
-                    let count = hands[index].resources[resource] ?? 0
-                    guard count >= 0 else {
-                        throw DecodingError.dataCorruptedError(forKey: .playerHands, in: container, debugDescription: "Negative resource count")
-                    }
-                    for _ in 0..<count {
-                        let resourceID = Self.legacyResourceID(roundID: id, resource: resource, ordinal: ordinal)
-                        resourcesMap[resourceID] = resource
-                        playerHands[index].resourceIDs.append(resourceID)
-                        ordinal += 1
-                    }
-                }
-                while ordinal < supply {
-                    let resourceID = Self.legacyResourceID(roundID: id, resource: resource, ordinal: ordinal)
-                    resourcesMap[resourceID] = resource
-                    bankResourceIDs.append(resourceID)
-                    ordinal += 1
-                }
-            }
-        }
+        self.resourcesMap = try container.decode([ResourceID: Resource].self, forKey: .resourcesMap)
+        self.bankResourceIDs = try container.decode([ResourceID].self, forKey: .bankResourceIDs)
+        self.devCardsMap = try container.decode([DevCardID: DevCard].self, forKey: .devCardsMap)
+        self.devCardDeck = try container.decode([DevCardID].self, forKey: .devCardDeck)
+        self.playerHands = try container.decode([PlayerHand].self, forKey: .playerHands)
     }
-
-    private static func legacyResourceID(roundID: String, resource: Resource, ordinal: Int) -> ResourceID {
-        let seed = "\(roundID.utf8.count):\(roundID):\(resource.rawValue):\(ordinal)"
-        return SHA256.hash(data: Data(seed.utf8)).map { String(format: "%02x", $0) }.joined()
-    }
-}
-
-private struct LegacyPlayerHand: Decodable {
-    let player: Player
-    let resources: [Resource: Int]
-    let heldDevCards: [DevCard]
-    let playedDevCards: [DevCard]
-    let devCardIDsPurchasedThisTurn: [DevCardID]
-    let remainingHomesteads: Int
-    let remainingTowns: Int
-    let remainingTrails: Int
 }

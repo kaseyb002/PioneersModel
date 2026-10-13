@@ -249,48 +249,4 @@ import Testing
         #expect(hand.heldDevCards(using: [1: DevCard(id: 1, kind: .ranger)]).count == 1)
     }
 
-    @Test(arguments: [3, 5]) func legacySavedRoundMigratesDeterministicallyAndReencodesAsIDs(playerCount: Int) throws {
-        var original = Round.fakeInProgress(players: Round.defaultFakePlayers(count: playerCount))
-        let card = try #require(original.devCardDeck.first { original.devCardsMap[$0]?.kind == .landmark })
-        original.devCardDeck.removeAll { $0 == card }
-        original.playerHands[0].heldDevCardIDs.append(card)
-        var object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])
-        var hands = try #require(object["playerHands"] as? [[String: Any]])
-        for index in hands.indices {
-            let hand = original.playerHands[index]
-            hands[index].removeValue(forKey: "resourceIDs")
-            hands[index].removeValue(forKey: "heldDevCardIDs")
-            hands[index].removeValue(forKey: "playedDevCardIDs")
-            hands[index]["resources"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(hand.resources(using: original.resourcesMap)))
-            hands[index]["heldDevCards"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(hand.heldDevCards(using: original.devCardsMap)))
-            hands[index]["playedDevCards"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(hand.playedDevCards(using: original.devCardsMap)))
-        }
-        // Old unlimited-bank saves may already exceed the physical supply.
-        if playerCount == 5 {
-            var resources = original.playerHands[0].resources(using: original.resourcesMap)
-            resources[.wood] = 25
-            hands[0]["resources"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(resources))
-        }
-        object["playerHands"] = hands
-        object["devCardDeck"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(original.devCardDeck.compactMap { original.devCardsMap[$0] }))
-        object.removeValue(forKey: "resourcesMap")
-        object.removeValue(forKey: "devCardsMap")
-        object.removeValue(forKey: "bankResourceIDs")
-        let legacy = try JSONSerialization.data(withJSONObject: object)
-        let migrated = try JSONDecoder().decode(Round.self, from: legacy)
-        #expect(try JSONDecoder().decode(Round.self, from: legacy) == migrated)
-        #expect(migrated.state == original.state)
-        #expect(migrated.log == original.log)
-        #expect(migrated.devCardsMap == original.devCardsMap)
-        #expect(migrated.playerHands[0].heldDevCardIDs == [card])
-        #expect(migrated.victoryPoints(for: "p1") == original.victoryPoints(for: "p1"))
-        for index in original.playerHands.indices {
-            var expected = original.playerHands[index].resources(using: original.resourcesMap)
-            if playerCount == 5, index == 0 { expected[.wood] = 25 }
-            #expect(migrated.playerHands[index].resources(using: migrated.resourcesMap) == expected)
-        }
-        if playerCount == 5 { #expect(migrated.bankResourceCounts[.wood] == nil) }
-        #expect(try JSONDecoder().decode(Round.self, from: JSONEncoder().encode(migrated)) == migrated)
-        assertConservation(migrated)
-    }
 }
