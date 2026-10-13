@@ -60,7 +60,10 @@ public struct Round: Equatable, Codable, Sendable {
     public internal(set) var buildings: [Building]
     public internal(set) var trails: [Trail]
     public internal(set) var outlawTileID: TileID
-    public internal(set) var devCardDeck: [DevCard]
+    public internal(set) var resourcesMap: [ResourceID: Resource]
+    public internal(set) var bankResourceIDs: [ResourceID]
+    public internal(set) var devCardsMap: [DevCardID: DevCard]
+    public internal(set) var devCardDeck: [DevCardID]
     public internal(set) var openTradeOffer: TradeOffer?
     public internal(set) var longestRoadHolder: PlayerID?
     public internal(set) var largestArmyHolder: PlayerID?

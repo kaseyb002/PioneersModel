@@ -64,8 +64,20 @@ extension Round {
                 perPlayer[b.ownerID, default: [:]][resource, default: 0] += b.kind.resourceYield
             }
         }
-        for (pid, bundle) in perPlayer {
-            grantResources(bundle, toPlayerID: pid)
+        // If multiple players need a scarce resource, none receive it. A sole
+        // recipient takes as many cards as remain in the bank.
+        for resource in Resource.allCases {
+            let recipients = perPlayer.filter { ($0.value[resource] ?? 0) > 0 }
+            let requested = recipients.values.reduce(0) { $0 + ($1[resource] ?? 0) }
+            if recipients.count > 1, requested > (bankResourceCounts[resource] ?? 0) {
+                for playerID in Array(perPlayer.keys) { perPlayer[playerID]?.removeValue(forKey: resource) }
+            }
+        }
+        for hand in playerHands {
+            let playerID = hand.player.id
+            let granted = grantResources(perPlayer[playerID] ?? [:], toPlayerID: playerID)
+            if granted.isEmpty { perPlayer.removeValue(forKey: playerID) }
+            else { perPlayer[playerID] = granted }
         }
         if perPlayer.isEmpty == false {
             logAction(playerID: activeID, decision: .collectedResources(perPlayer: perPlayer))
@@ -248,11 +260,11 @@ extension Round {
         }
 
         try spendResources(Self.devCardCost, fromPlayerID: buyerID)
-        let card: DevCard = devCardDeck.removeFirst()
-        playerHands[handIdx].heldDevCards.append(card)
+        let cardID: DevCardID = devCardDeck.removeFirst()
+        playerHands[handIdx].heldDevCardIDs.append(cardID)
         // Special-build purchases are playable on the buyer's next normal turn.
         if isSpecialBuildAction == false {
-            playerHands[handIdx].devCardIDsPurchasedThisTurn.append(card.id)
+            playerHands[handIdx].devCardIDsPurchasedThisTurn.append(cardID)
         }
         logAction(playerID: buyerID, decision: .boughtDevCard)
 

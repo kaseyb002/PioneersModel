@@ -25,6 +25,7 @@ public enum PioneersModelError: Error, Equatable, Sendable {
     case trailMustConnectToOwnNetwork
     case notYourBuilding
     case mustBeHomesteadToUpgrade
+    case insufficientBankResources
     case insufficientResources
     case insufficientPieces
     case noDevCardsAvailable

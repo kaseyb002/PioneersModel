@@ -29,7 +29,7 @@ extension Round {
         guard let activeHand: PlayerHand = playerHand(for: activeID) else {
             throw PioneersModelError.playerNotFound
         }
-        guard Round.hand(activeHand.resources, covers: cleanedGive) else {
+        guard Round.hand(activeHand.resources(using: resourcesMap), covers: cleanedGive) else {
             throw PioneersModelError.insufficientResources
         }
 
@@ -113,17 +113,22 @@ extension Round {
             throw PioneersModelError.playerNotFound
         }
         // Proposer must still have the give resources; acceptor must have the receive resources.
-        guard Round.hand(proposerHand.resources, covers: offer.give) else {
+        guard Round.hand(proposerHand.resources(using: resourcesMap), covers: offer.give) else {
             throw PioneersModelError.insufficientResources
         }
-        guard Round.hand(acceptorHand.resources, covers: offer.receive) else {
+        guard Round.hand(acceptorHand.resources(using: resourcesMap), covers: offer.receive) else {
             throw PioneersModelError.insufficientResources
         }
 
-        try spendResources(offer.give, fromPlayerID: offer.fromPlayerID)
-        try spendResources(offer.receive, fromPlayerID: playerID)
-        grantResources(offer.receive, toPlayerID: offer.fromPlayerID)
-        grantResources(offer.give, toPlayerID: playerID)
+        guard let proposerIndex = playerIndex(of: offer.fromPlayerID),
+              let acceptorIndex = playerIndex(of: playerID) else { throw PioneersModelError.playerNotFound }
+        let given = try resourceIDs(for: offer.give, from: proposerHand.resourceIDs)
+        let received = try resourceIDs(for: offer.receive, from: acceptorHand.resourceIDs)
+        let givenSet = Set(given), receivedSet = Set(received)
+        playerHands[proposerIndex].resourceIDs.removeAll { givenSet.contains($0) }
+        playerHands[acceptorIndex].resourceIDs.removeAll { receivedSet.contains($0) }
+        playerHands[proposerIndex].resourceIDs.append(contentsOf: received)
+        playerHands[acceptorIndex].resourceIDs.append(contentsOf: given)
 
         openTradeOffer = nil
         logAction(playerID: playerID, decision: .acceptedTradeOffer(id: offer.id, acceptorID: playerID))
@@ -141,9 +146,10 @@ extension Round {
         guard let hand: PlayerHand = playerHand(for: activeID) else {
             throw PioneersModelError.playerNotFound
         }
-        guard (hand.resources[give] ?? 0) >= 4 else {
+        guard (hand.resources(using: resourcesMap)[give] ?? 0) >= 4 else {
             throw PioneersModelError.insufficientResources
         }
+        guard (bankResourceCounts[want] ?? 0) > 0 else { throw PioneersModelError.insufficientBankResources }
         try spendResources([give: 4], fromPlayerID: activeID)
         grantResources([want: 1], toPlayerID: activeID)
         logAction(
@@ -175,7 +181,8 @@ extension Round {
             guard let hand: PlayerHand = playerHand(for: activeID) else {
                 throw PioneersModelError.playerNotFound
             }
-            guard (hand.resources[give] ?? 0) >= 3 else { throw PioneersModelError.insufficientResources }
+            guard (hand.resources(using: resourcesMap)[give] ?? 0) >= 3 else { throw PioneersModelError.insufficientResources }
+            guard (bankResourceCounts[want] ?? 0) > 0 else { throw PioneersModelError.insufficientBankResources }
             try spendResources([give: 3], fromPlayerID: activeID)
             grantResources([want: 1], toPlayerID: activeID)
             logAction(
@@ -187,7 +194,8 @@ extension Round {
             guard let hand: PlayerHand = playerHand(for: activeID) else {
                 throw PioneersModelError.playerNotFound
             }
-            guard (hand.resources[give] ?? 0) >= 2 else { throw PioneersModelError.insufficientResources }
+            guard (hand.resources(using: resourcesMap)[give] ?? 0) >= 2 else { throw PioneersModelError.insufficientResources }
+            guard (bankResourceCounts[want] ?? 0) > 0 else { throw PioneersModelError.insufficientBankResources }
             try spendResources([give: 2], fromPlayerID: activeID)
             grantResources([want: 1], toPlayerID: activeID)
             logAction(

@@ -27,18 +27,10 @@ extension Round {
             throw PioneersModelError.wrongDiscardAmount
         }
 
-        for (r, n) in resources where n > 0 {
-            guard (playerHands[handIdx].resources[r] ?? 0) >= n else {
-                throw PioneersModelError.insufficientResources
-            }
+        guard Self.hand(playerHands[handIdx].resources(using: resourcesMap), covers: resources) else {
+            throw PioneersModelError.insufficientResources
         }
-
-        for (r, n) in resources where n > 0 {
-            playerHands[handIdx].resources[r, default: 0] -= n
-            if playerHands[handIdx].resources[r] == 0 {
-                playerHands[handIdx].resources.removeValue(forKey: r)
-            }
-        }
+        try spendResources(resources, fromPlayerID: playerID)
         logAction(playerID: playerID, decision: .discardedResources(resources: resources))
 
         pending.removeAll { $0 == playerID }
@@ -115,10 +107,11 @@ extension Round {
         guard let victimIdx: Int = playerIndex(of: victimID) else { throw PioneersModelError.playerNotFound }
         guard let activeIdx: Int = playerIndex(of: activeID) else { throw PioneersModelError.playerNotFound }
 
-        // Choose a random resource weighted by count.
-        let stolen: Resource? = consumeRandomResource(fromIndex: victimIdx)
-        if let stolen {
-            playerHands[activeIdx].resources[stolen, default: 0] += 1
+        // Transfer the exact card selected by the shared ID order.
+        let stolenID: ResourceID? = consumeStealResource(fromIndex: victimIdx)
+        let stolen = stolenID.flatMap { resourcesMap[$0] }
+        if let stolenID {
+            playerHands[activeIdx].resourceIDs.append(stolenID)
         }
         logAction(playerID: activeID, decision: .stoleResource(from: victimID, resource: stolen))
 
@@ -139,36 +132,19 @@ extension Round {
         state = .waitingForPlayer(id: activeID, phase: nextPhase)
     }
 
-    /// Remove one random resource card (uniformly weighted) from `playerHands[idx]`, returning the
-    /// resource that was removed. Uses `cookedStealChoices` when available (for deterministic tests).
-    private mutating func consumeRandomResource(fromIndex idx: Int) -> Resource? {
-        let hand: PlayerHand = playerHands[idx]
-        if hand.totalResourceCount == 0 { return nil }
-
-        // Prefer cooked choice when it matches a resource the victim actually holds.
-        if cookedStealChoices.isEmpty == false {
-            let picked: Resource = cookedStealChoices.removeFirst()
-            if (hand.resources[picked] ?? 0) > 0 {
-                playerHands[idx].resources[picked, default: 0] -= 1
-                if playerHands[idx].resources[picked] == 0 {
-                    playerHands[idx].resources.removeValue(forKey: picked)
-                }
-                return picked
-            }
-            // Cooked choice didn't match; fall through to random.
+    /// IDs are assigned randomly once at round creation. Selecting the lowest ID
+    /// makes theft reproducible without consuming a separate RNG or adding a counter.
+    private mutating func consumeStealResource(fromIndex idx: Int) -> ResourceID? {
+        let ids = playerHands[idx].resourceIDs
+        guard !ids.isEmpty else { return nil }
+        let picked: ResourceID
+        if !cookedStealChoices.isEmpty {
+            let resource = cookedStealChoices.removeFirst()
+            picked = ids.filter { resourcesMap[$0] == resource }.min() ?? ids.min()!
+        } else {
+            picked = ids.min()!
         }
-
-        // Build the weighted pool and pick uniformly.
-        var pool: [Resource] = []
-        for (r, n) in hand.resources {
-            for _ in 0..<n { pool.append(r) }
-        }
-        guard pool.isEmpty == false else { return nil }
-        let picked: Resource = pool[Int.random(in: 0..<pool.count)]
-        playerHands[idx].resources[picked, default: 0] -= 1
-        if playerHands[idx].resources[picked] == 0 {
-            playerHands[idx].resources.removeValue(forKey: picked)
-        }
+        playerHands[idx].resourceIDs.removeAll { $0 == picked }
         return picked
     }
 }

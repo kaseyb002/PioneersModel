@@ -90,7 +90,11 @@ extension Round {
         self.buildings = []
         self.trails = []
         self.outlawTileID = desertTileID
-        self.devCardDeck = deck
+        self.devCardsMap = Dictionary(uniqueKeysWithValues: deck.map { ($0.id, $0) })
+        self.devCardDeck = deck.map(\.id)
+        let bank = Self.makeResourceBank(countPerResource: players.count >= Self.expansionThreshold ? 24 : 19)
+        self.resourcesMap = bank.map
+        self.bankResourceIDs = bank.ids
         self.openTradeOffer = nil
         self.longestRoadHolder = nil
         self.largestArmyHolder = nil

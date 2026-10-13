@@ -331,7 +331,7 @@ func rollingSevenEntersSevenResolution() throws {
     autoSetup(&round)
 
     // Give the first player a lot of resources to force a discard (they're typically under 7 after setup).
-    round.playerHands[0].resources = [.wood: 3, .brick: 3, .wheat: 3]
+    round.setTestResources([.wood: 3, .brick: 3, .wheat: 3], at: 0)
     _ = try round.rollDice()
 
     switch round.state {
@@ -350,7 +350,7 @@ func rollingSevenEntersSevenResolution() throws {
 func discardRejectsWrongAmount() throws {
     var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [7])
     autoSetup(&round)
-    round.playerHands[0].resources = [.wood: 4, .brick: 4] // 8 cards, must discard 4
+    round.setTestResources([.wood: 4, .brick: 4], at: 0)// 8 cards, must discard 4
     _ = try round.rollDice()
 
     if case .waitingForPlayer(_, .discardingAfterSeven) = round.state {
@@ -365,7 +365,7 @@ func sevenResolutionSkipsDiscardWhenAllUnderLimit() throws {
     var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [7])
     autoSetup(&round)
     // Clear everyone's hand so nobody has > maxHandSizeBeforeDiscard.
-    for i in round.playerHands.indices { round.playerHands[i].resources = [:] }
+    for i in round.playerHands.indices { round.setTestResources([:], at: i) }
     _ = try round.rollDice()
     guard case .waitingForPlayer(_, .movingOutlaw) = round.state else {
         Issue.record("Expected movingOutlaw phase")
@@ -377,7 +377,7 @@ func sevenResolutionSkipsDiscardWhenAllUnderLimit() throws {
 func movingOutlawToSameTileThrows() throws {
     var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [7])
     autoSetup(&round)
-    for i in round.playerHands.indices { round.playerHands[i].resources = [:] }
+    for i in round.playerHands.indices { round.setTestResources([:], at: i) }
     _ = try round.rollDice()
     let current: TileID = round.outlawTileID
     #expect(throws: PioneersModelError.cannotMoveOutlawToSameTile) {
@@ -411,10 +411,10 @@ func bankTradeFourForOne() throws {
     _ = try round.rollDice()
     let activeID: PlayerID = round.currentPlayerID!
     // Stock up on wood directly (bypass production).
-    round.playerHands[0].resources[.wood] = 5
+    round.setTestResource(.wood, count: 5, at: 0)
     try round.bankTrade(give: .wood, for: .ore)
-    #expect((round.playerHand(for: activeID)?.resources[.wood] ?? 0) == 1)
-    #expect((round.playerHand(for: activeID)?.resources[.ore] ?? 0) >= 1)
+    #expect((round.playerHand(for: activeID)?.resources(using: round.resourcesMap)[.wood] ?? 0) == 1)
+    #expect((round.playerHand(for: activeID)?.resources(using: round.resourcesMap)[.ore] ?? 0) >= 1)
 }
 
 @Test
@@ -422,7 +422,7 @@ func bankTradeRequiresFour() throws {
     var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
     autoSetup(&round)
     _ = try round.rollDice()
-    round.playerHands[0].resources = [.wood: 3]
+    round.setTestResources([.wood: 3], at: 0)
     #expect(throws: PioneersModelError.insufficientResources) {
         try round.bankTrade(give: .wood, for: .ore)
     }
@@ -435,7 +435,7 @@ func onlyActivePlayerCanPostTradeOffer() throws {
     var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
     autoSetup(&round)
     _ = try round.rollDice()
-    round.playerHands[0].resources[.wood] = 2
+    round.setTestResource(.wood, count: 2, at: 0)
     // posting by active player (p1) should work
     let offer: TradeOffer = try round.postTradeOffer(
         give: [.wood: 1],
@@ -449,7 +449,7 @@ func tradeOfferPreservesMixedGiveAndReceiveResources() throws {
     var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
     autoSetup(&round)
     _ = try round.rollDice()
-    round.playerHands[0].resources = [.wood: 2, .sheep: 3]
+    round.setTestResources([.wood: 2, .sheep: 3], at: 0)
 
     let give: [Resource: Int] = [.wood: 1, .sheep: 2]
     let receive: [Resource: Int] = [.brick: 1, .ore: 1]
@@ -466,7 +466,7 @@ func postTradeOfferReplacesExisting() throws {
     var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
     autoSetup(&round)
     _ = try round.rollDice()
-    round.playerHands[0].resources = [.wood: 2, .wheat: 2]
+    round.setTestResources([.wood: 2, .wheat: 2], at: 0)
 
     let first: TradeOffer = try round.postTradeOffer(give: [.wood: 1], receive: [.brick: 1])
     let second: TradeOffer = try round.postTradeOffer(give: [.wheat: 1], receive: [.ore: 1])
@@ -486,7 +486,7 @@ func cannotAcceptOwnOffer() throws {
     var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
     autoSetup(&round)
     _ = try round.rollDice()
-    round.playerHands[0].resources[.wood] = 2
+    round.setTestResource(.wood, count: 2, at: 0)
     let offer: TradeOffer = try round.postTradeOffer(give: [.wood: 1], receive: [.brick: 1])
     #expect(throws: PioneersModelError.cannotAcceptOwnOffer) {
         try round.acceptTradeOffer(offerID: offer.id, byPlayerID: "p1")
@@ -498,16 +498,16 @@ func acceptTradeOfferSwapsResources() throws {
     var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
     autoSetup(&round)
     _ = try round.rollDice()
-    round.playerHands[0].resources = [.wood: 2]
-    round.playerHands[1].resources = [.brick: 2]
+    round.setTestResources([.wood: 2], at: 0)
+    round.setTestResources([.brick: 2], at: 1)
 
     let offer: TradeOffer = try round.postTradeOffer(give: [.wood: 1], receive: [.brick: 1])
     try round.acceptTradeOffer(offerID: offer.id, byPlayerID: "p2")
 
-    #expect(round.playerHand(for: "p1")?.resources[.wood] == 1)
-    #expect(round.playerHand(for: "p1")?.resources[.brick] == 1)
-    #expect(round.playerHand(for: "p2")?.resources[.brick] == 1)
-    #expect(round.playerHand(for: "p2")?.resources[.wood] == 1)
+    #expect(round.playerHand(for: "p1")?.resources(using: round.resourcesMap)[.wood] == 1)
+    #expect(round.playerHand(for: "p1")?.resources(using: round.resourcesMap)[.brick] == 1)
+    #expect(round.playerHand(for: "p2")?.resources(using: round.resourcesMap)[.brick] == 1)
+    #expect(round.playerHand(for: "p2")?.resources(using: round.resourcesMap)[.wood] == 1)
     #expect(round.openTradeOffer == nil)
 }
 
@@ -516,8 +516,8 @@ func acceptTradeOfferSwapsMixedGiveAndReceiveResources() throws {
     var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
     autoSetup(&round)
     _ = try round.rollDice()
-    round.playerHands[0].resources = [.wood: 2, .sheep: 3]
-    round.playerHands[1].resources = [.brick: 2, .ore: 2]
+    round.setTestResources([.wood: 2, .sheep: 3], at: 0)
+    round.setTestResources([.brick: 2, .ore: 2], at: 1)
 
     let offer: TradeOffer = try round.postTradeOffer(
         give: [.wood: 1, .sheep: 2],
@@ -525,13 +525,13 @@ func acceptTradeOfferSwapsMixedGiveAndReceiveResources() throws {
     )
     try round.acceptTradeOffer(offerID: offer.id, byPlayerID: "p2")
 
-    #expect(round.playerHand(for: "p1")?.resources == [
+    #expect(round.playerHand(for: "p1")?.resources(using: round.resourcesMap) == [
         .wood: 1,
         .sheep: 1,
         .brick: 1,
         .ore: 1,
     ])
-    #expect(round.playerHand(for: "p2")?.resources == [
+    #expect(round.playerHand(for: "p2")?.resources(using: round.resourcesMap) == [
         .wood: 1,
         .sheep: 2,
         .brick: 1,
@@ -545,9 +545,9 @@ func ineligibleAcceptorIsRejected() throws {
     var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
     autoSetup(&round)
     _ = try round.rollDice()
-    round.playerHands[0].resources = [.wood: 2]
-    round.playerHands[1].resources = [.brick: 2]
-    round.playerHands[2].resources = [.brick: 2]
+    round.setTestResources([.wood: 2], at: 0)
+    round.setTestResources([.brick: 2], at: 1)
+    round.setTestResources([.brick: 2], at: 2)
 
     let offer: TradeOffer = try round.postTradeOffer(
         give: [.wood: 1],
@@ -566,10 +566,10 @@ func cannotPlayDevCardPurchasedThisTurn() throws {
     var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
     autoSetup(&round)
     _ = try round.rollDice()
-    round.playerHands[0].resources = [.wheat: 1, .sheep: 1, .ore: 1]
+    round.setTestResources([.wheat: 1, .sheep: 1, .ore: 1], at: 0)
     try round.buyDevCard()
     // Take the just-bought card and try to play it this turn.
-    guard let card: DevCard = round.playerHand(for: "p1")?.heldDevCards.last else {
+    guard let card: DevCard = round.playerHand(for: "p1")?.heldDevCards(using: round.devCardsMap).last else {
         Issue.record("Expected a held dev card")
         return
     }
@@ -591,7 +591,7 @@ func cannotPlayDevCardPurchasedThisTurn() throws {
 func longestRoadAwardedAtFive() throws {
     var round: Round = try makeStandardRound(playerCount: 3)
     autoSetup(&round)
-    round.playerHands[0].resources = [.wood: 20, .brick: 20]
+    round.setTestResources([.wood: 10, .brick: 10], at: 0)
 
     round.cookedDiceRolls = [5]
     _ = try round.rollDice()
@@ -698,7 +698,7 @@ func specialBuildPhaseStartsAtFivePlayers() throws {
     autoSetup(&round)
     _ = try round.rollDice()
     for index in 1..<round.playerHands.count {
-        round.playerHands[index].resources = Round.devCardCost
+        round.setTestResources(Round.devCardCost, at: index)
     }
     try round.endTurn()
     guard case .specialBuildPhase(let origin, let pending) = round.state else {
@@ -716,7 +716,7 @@ func specialBuildAutomaticallyPassesPlayersWithoutLegalActions() throws {
     autoSetup(&round)
     _ = try round.rollDice()
     for index in round.playerHands.indices {
-        round.playerHands[index].resources = [:]
+        round.setTestResources([:], at: index)
     }
 
     try round.endTurn()
@@ -736,9 +736,9 @@ func specialBuildAutomaticallySkipsOnlyIneligibleQueueHeads() throws {
     autoSetup(&round)
     _ = try round.rollDice()
     for index in round.playerHands.indices {
-        round.playerHands[index].resources = [:]
+        round.setTestResources([:], at: index)
     }
-    round.playerHands[2].resources = Round.devCardCost
+    round.setTestResources(Round.devCardCost, at: 2)
 
     try round.endTurn()
 
@@ -758,10 +758,10 @@ func buyingCardDuringSpecialBuildAdvancesToNextEligiblePlayer() throws {
     autoSetup(&round)
     _ = try round.rollDice()
     for index in round.playerHands.indices {
-        round.playerHands[index].resources = [:]
+        round.setTestResources([:], at: index)
     }
-    round.playerHands[1].resources = Round.devCardCost
-    round.playerHands[2].resources = Round.devCardCost
+    round.setTestResources(Round.devCardCost, at: 1)
+    round.setTestResources(Round.devCardCost, at: 2)
     try round.endTurn()
 
     try round.buyDevCard()
@@ -780,23 +780,24 @@ func specialBuildCardCanBePlayedBeforeRollingOnNextTurn() throws {
     autoSetup(&round)
     _ = try round.rollDice()
     for index in round.playerHands.indices {
-        round.playerHands[index].resources = [:]
+        round.setTestResources([:], at: index)
     }
-    round.playerHands[1].resources = Round.devCardCost
+    round.setTestResources(Round.devCardCost, at: 1)
     let card = DevCard(id: 9001, kind: .roundup)
-    round.devCardDeck = [card]
+    round.devCardsMap[card.id] = card
+    round.devCardDeck = [card.id]
     try round.endTurn()
     #expect(round.isSpecialBuildPhase)
 
     try round.buyDevCard()
 
     #expect(round.state == .waitingForPlayer(id: "p2", phase: .beforeRoll))
-    round.playerHands[0].resources = [.wood: 2]
+    round.setTestResources([.wood: 2], at: 0)
     try round.playDevCard(id: card.id, resource: .wood)
 
-    #expect(round.playerHand(for: "p2")?.playedDevCards == [card])
-    #expect(round.playerHand(for: "p2")?.resources[.wood] == 2)
-    #expect(round.playerHand(for: "p1")?.resources[.wood] == nil)
+    #expect(round.playerHand(for: "p2")?.playedDevCards(using: round.devCardsMap) == [card])
+    #expect(round.playerHand(for: "p2")?.resources(using: round.resourcesMap)[.wood] == 2)
+    #expect(round.playerHand(for: "p1")?.resources(using: round.resourcesMap)[.wood] == nil)
     #expect(round.state == .waitingForPlayer(id: "p2", phase: .beforeRoll))
     #expect(round.hasRolledDiceThisTurn == false)
 }
@@ -805,10 +806,10 @@ func specialBuildCardCanBePlayedBeforeRollingOnNextTurn() throws {
 func everyBoardBuildDuringSpecialBuildAdvancesToNextEligiblePlayer() throws {
     var baseRound: Round = try makeStandardRound(playerCount: 5)
     autoSetup(&baseRound)
-    baseRound.playerHands[2].resources = Round.devCardCost
+    baseRound.setTestResources(Round.devCardCost, at: 2)
 
     var trailRound = baseRound
-    trailRound.playerHands[1].resources = Round.trailCost
+    trailRound.setTestResources(Round.trailCost, at: 1)
     trailRound.state = .specialBuildPhase(originatingPlayerID: "p1", pending: ["p2", "p3"])
     guard let edgeID = trailRound.edges.first(where: {
         trailRound.canPlaceTrail(at: $0.id, forPlayerID: "p2")
@@ -820,7 +821,7 @@ func everyBoardBuildDuringSpecialBuildAdvancesToNextEligiblePlayer() throws {
     #expect(trailRound.currentPlayerID == "p3")
 
     var homesteadRound = baseRound
-    homesteadRound.playerHands[1].resources = Round.homesteadCost
+    homesteadRound.setTestResources(Round.homesteadCost, at: 1)
     homesteadRound.state = .specialBuildPhase(originatingPlayerID: "p1", pending: ["p2", "p3"])
     func reachableHomestead(in round: Round) -> VertexID? {
         round.vertices.first(where: { vertex in
@@ -847,7 +848,7 @@ func everyBoardBuildDuringSpecialBuildAdvancesToNextEligiblePlayer() throws {
     #expect(homesteadRound.currentPlayerID == "p3")
 
     var townRound = baseRound
-    townRound.playerHands[1].resources = Round.townCost
+    townRound.setTestResources(Round.townCost, at: 1)
     townRound.state = .specialBuildPhase(originatingPlayerID: "p1", pending: ["p2", "p3"])
     guard let homesteadID = townRound.buildings.first(where: {
         $0.ownerID == "p2" && $0.kind == .homestead
@@ -876,11 +877,11 @@ func specialBuildPhaseDoesNotStartAtThreePlayers() throws {
 func playerAlreadyAtTenPointsWinsWhenTheirNormalTurnBegins() throws {
     var round: Round = try makeStandardRound(playerCount: 5)
     autoSetup(&round)
-    round.playerHands[1].heldDevCards.append(contentsOf: (0..<8).map {
+    round.appendTestDevCards(at: 1, played: false, cards: (0..<8).map {
         DevCard(id: 10_000 + $0, kind: .landmark)
     })
     for index in round.playerHands.indices {
-        round.playerHands[index].resources = [:]
+        round.setTestResources([:], at: index)
     }
     round.state = .waitingForPlayer(id: "p1", phase: .main)
     round.hasRolledDiceThisTurn = true
@@ -959,16 +960,16 @@ func fullPlayThroughEndsWithWinner() throws {
     // landmark cards from the deck.
     let landmarkCards: [DevCard] = GameMap.standardDevCardDeck.filter { $0.kind == .landmark }
     // Put 5 landmarks directly into p1's hand (as if already "bought last turn" so not flagged).
-    round.playerHands[0].heldDevCards.append(contentsOf: landmarkCards)
+    round.appendTestDevCards(at: 0, played: false, cards: landmarkCards)
 
     // Kick off p1's turn; they should win via victory-point landmarks + existing building VP.
     round.cookedDiceRolls = [5]
     _ = try round.rollDice()
     // Trigger a checkWin by buying a dev card (will only fire if totalVP >= 10).
     // Give resources for a buy.
-    round.playerHands[0].resources[.wheat] = 1
-    round.playerHands[0].resources[.sheep] = 1
-    round.playerHands[0].resources[.ore] = 1
+    round.setTestResource(.wheat, count: 1, at: 0)
+    round.setTestResource(.sheep, count: 1, at: 0)
+    round.setTestResource(.ore, count: 1, at: 0)
     try round.buyDevCard()
 
     let totalVP: Int = round.victoryPoints(for: "p1")
@@ -980,7 +981,7 @@ func fullPlayThroughEndsWithWinner() throws {
     } else {
         // If we didn't hit threshold with 5 landmarks + 2 building VPs, simulate more progress:
         // upgrade a homestead to a town to add 1 VP.
-        round.playerHands[0].resources = [.wheat: 10, .ore: 10, .wood: 4, .brick: 4, .sheep: 2]
+        round.setTestResources([.wheat: 10, .ore: 10, .wood: 4, .brick: 4, .sheep: 2], at: 0)
         if let firstOwn: Building = round.buildings.first(where: { $0.ownerID == "p1" && $0.kind == .homestead }) {
             try round.upgradeToTown(vertexID: firstOwn.vertexID)
         }
@@ -1037,7 +1038,7 @@ func portTradeRequiresOwnership() throws {
     var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
     autoSetup(&round)
     _ = try round.rollDice()
-    round.playerHands[0].resources = [.wood: 5]
+    round.setTestResources([.wood: 5], at: 0)
     // p1 doesn't own any port because setup doesn't target port vertices.
     if let firstPort: PioneersModel.Port = round.ports.first {
         #expect(throws: PioneersModelError.portNotOwnedByPlayer) {
@@ -1056,10 +1057,10 @@ func genericPortTradeIsThreeForOne() throws {
         return false
     }) else { return }
     round.buildings.append(Building(kind: .homestead, ownerID: "p1", vertexID: port.vertexIDs[0]))
-    round.playerHands[0].resources = [.wood: 4]
+    round.setTestResources([.wood: 4], at: 0)
     try round.portTrade(portID: port.id, give: .wood, for: .ore)
-    #expect((round.playerHand(for: "p1")?.resources[.wood] ?? 0) == 1)
-    #expect((round.playerHand(for: "p1")?.resources[.ore] ?? 0) == 1)
+    #expect((round.playerHand(for: "p1")?.resources(using: round.resourcesMap)[.wood] ?? 0) == 1)
+    #expect((round.playerHand(for: "p1")?.resources(using: round.resourcesMap)[.ore] ?? 0) == 1)
 }
 
 @Test
@@ -1073,15 +1074,15 @@ func specificPortTradeIsTwoForOne() throws {
     }) else { return }
     guard case .specific(let r) = port.kind else { return }
     round.buildings.append(Building(kind: .homestead, ownerID: "p1", vertexID: port.vertexIDs[0]))
-    round.playerHands[0].resources = [r: 3]
+    round.setTestResources([r: 3], at: 0)
     let other: Resource = Resource.allCases.first(where: { $0 != r })!
     #expect(throws: PioneersModelError.invalidPortTrade) {
         try round.portTrade(portID: port.id, give: other, for: r)
     }
     let want: Resource = r == .wheat ? .ore : .wheat
     try round.portTrade(portID: port.id, give: r, for: want)
-    #expect((round.playerHand(for: "p1")?.resources[r] ?? 0) == 1)
-    #expect((round.playerHand(for: "p1")?.resources[want] ?? 0) == 1)
+    #expect((round.playerHand(for: "p1")?.resources(using: round.resourcesMap)[r] ?? 0) == 1)
+    #expect((round.playerHand(for: "p1")?.resources(using: round.resourcesMap)[want] ?? 0) == 1)
 }
 
 // MARK: - Dev card mechanics
@@ -1098,7 +1099,7 @@ func rangerMovesOutlawAndCountsTowardLargestArmy() throws {
         DevCard(id: 9002, kind: .ranger),
         DevCard(id: 9003, kind: .ranger),
     ]
-    round.playerHands[0].heldDevCards.append(contentsOf: cards)
+    round.appendTestDevCards(at: 0, played: false, cards: cards)
 
     try round.playDevCard(id: 9001)
     guard case .waitingForPlayer(_, .movingOutlaw(.playedRanger)) = round.state else {
@@ -1118,7 +1119,7 @@ func rangerMovesOutlawAndCountsTowardLargestArmy() throws {
        let first: PlayerID = candidates.first {
         _ = try round.stealFromPlayer(victimID: first)
     }
-    #expect(round.playerHand(for: "p1")?.rangersPlayed == 1)
+    #expect(round.playerHand(for: "p1")?.rangersPlayed(using: round.devCardsMap) == 1)
     #expect(round.state == .waitingForPlayer(id: "p1", phase: .main))
 
     // Back in .main, can't play a 2nd dev card this turn.
@@ -1133,7 +1134,7 @@ func rangerPlayedBeforeRollStillRequiresDiceRollAfterOutlawResolution() throws {
     autoSetup(&round)
 
     let card: DevCard = DevCard(id: 9001, kind: .ranger)
-    round.playerHands[0].heldDevCards.append(card)
+    round.appendTestDevCard(at: 0, played: false, card: card)
 
     try round.playDevCard(id: card.id)
     let target: TileID = round.tiles.first(where: { tile in
@@ -1158,7 +1159,7 @@ func roundupPlayedBeforeRollStillRequiresDiceRoll() throws {
     var round: Round = try makeStandardRound(playerCount: 3)
     autoSetup(&round)
     let card: DevCard = DevCard(id: 9100, kind: .roundup)
-    round.playerHands[0].heldDevCards.append(card)
+    round.appendTestDevCard(at: 0, played: false, card: card)
 
     try round.playDevCard(id: card.id, resource: .wheat)
 
@@ -1170,7 +1171,7 @@ func bountifulHarvestPlayedBeforeRollStillRequiresDiceRoll() throws {
     var round: Round = try makeStandardRound(playerCount: 3)
     autoSetup(&round)
     let card: DevCard = DevCard(id: 9200, kind: .bountifulHarvest)
-    round.playerHands[0].heldDevCards.append(card)
+    round.appendTestDevCard(at: 0, played: false, card: card)
 
     try round.playDevCard(id: card.id, pickedResources: [.wheat, .ore])
 
@@ -1182,7 +1183,7 @@ func pathfinderEndedEarlyBeforeRollStillRequiresDiceRoll() throws {
     var round: Round = try makeStandardRound(playerCount: 3)
     autoSetup(&round)
     let card: DevCard = DevCard(id: 9300, kind: .pathfinder)
-    round.playerHands[0].heldDevCards.append(card)
+    round.appendTestDevCard(at: 0, played: false, card: card)
 
     try round.playDevCard(id: card.id)
     try round.resolvePathfinderEarly()
@@ -1197,15 +1198,15 @@ func roundupStealsAllOfOneResource() throws {
     _ = try round.rollDice()
 
     let card: DevCard = DevCard(id: 9100, kind: .roundup)
-    round.playerHands[0].heldDevCards.append(card)
-    round.playerHands[1].resources[.wheat] = 3
-    round.playerHands[2].resources[.wheat] = 2
-    round.playerHands[0].resources[.wheat] = 0
+    round.appendTestDevCard(at: 0, played: false, card: card)
+    round.setTestResource(.wheat, count: 3, at: 1)
+    round.setTestResource(.wheat, count: 2, at: 2)
+    round.setTestResource(.wheat, count: 0, at: 0)
 
     try round.playDevCard(id: 9100, resource: .wheat)
-    #expect(round.playerHand(for: "p1")?.resources[.wheat] == 5)
-    #expect(round.playerHand(for: "p2")?.resources[.wheat] == nil)
-    #expect(round.playerHand(for: "p3")?.resources[.wheat] == nil)
+    #expect(round.playerHand(for: "p1")?.resources(using: round.resourcesMap)[.wheat] == 5)
+    #expect(round.playerHand(for: "p2")?.resources(using: round.resourcesMap)[.wheat] == nil)
+    #expect(round.playerHand(for: "p3")?.resources(using: round.resourcesMap)[.wheat] == nil)
 }
 
 @Test
@@ -1215,13 +1216,13 @@ func bountifulHarvestGrantsTwoResources() throws {
     _ = try round.rollDice()
 
     let card: DevCard = DevCard(id: 9200, kind: .bountifulHarvest)
-    round.playerHands[0].heldDevCards.append(card)
+    round.appendTestDevCard(at: 0, played: false, card: card)
     let before: Int = round.playerHand(for: "p1")?.totalResourceCount ?? 0
     try round.playDevCard(id: 9200, pickedResources: [.wheat, .ore])
     let after: Int = round.playerHand(for: "p1")?.totalResourceCount ?? 0
     #expect(after - before == 2)
-    #expect((round.playerHand(for: "p1")?.resources[.wheat] ?? 0) >= 1)
-    #expect((round.playerHand(for: "p1")?.resources[.ore] ?? 0) >= 1)
+    #expect((round.playerHand(for: "p1")?.resources(using: round.resourcesMap)[.wheat] ?? 0) >= 1)
+    #expect((round.playerHand(for: "p1")?.resources(using: round.resourcesMap)[.ore] ?? 0) >= 1)
 }
 
 @Test
@@ -1231,7 +1232,7 @@ func pathfinderPlacesTwoFreeTrails() throws {
     _ = try round.rollDice()
 
     let card: DevCard = DevCard(id: 9300, kind: .pathfinder)
-    round.playerHands[0].heldDevCards.append(card)
+    round.appendTestDevCard(at: 0, played: false, card: card)
     // No resources needed for pathfinder.
     try round.playDevCard(id: 9300)
     guard case .waitingForPlayer(_, .playingPathfinder(let rem)) = round.state else {
@@ -1259,7 +1260,7 @@ func largestArmyAwardedAtThreeRangers() throws {
 
     // Put three ranger cards in p1's played pile directly and call checkLargestArmy.
     for i in 0..<3 {
-        round.playerHands[0].playedDevCards.append(DevCard(id: 8000 + i, kind: .ranger))
+        round.appendTestDevCard(at: 0, played: true, card: DevCard(id: 8000 + i, kind: .ranger))
     }
     round.checkLargestArmy()
     #expect(round.largestArmyHolder == "p1")
@@ -1271,7 +1272,7 @@ func largestArmyAwardLogBelongsToAwardRecipient() throws {
     autoSetup(&round)
     round.state = .specialBuildPhase(originatingPlayerID: "p1", pending: ["p2"])
     for i in 0..<Round.largestArmyMin {
-        round.playerHands[1].playedDevCards.append(DevCard(id: 11_000 + i, kind: .ranger))
+        round.appendTestDevCard(at: 1, played: true, card: DevCard(id: 11_000 + i, kind: .ranger))
     }
 
     round.checkLargestArmy()
@@ -1308,8 +1309,8 @@ func declinesAreInformationalAndDoNotPreventAcceptance() throws {
     var round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
     autoSetup(&round)
     _ = try round.rollDice()
-    round.playerHands[0].resources = [.wood: 2]
-    round.playerHands[1].resources = [.brick: 2]
+    round.setTestResources([.wood: 2], at: 0)
+    round.setTestResources([.brick: 2], at: 1)
     let offer = try round.postTradeOffer(give: [.wood: 1], receive: [.brick: 1])
     let state = round.state
     let hands = round.playerHands
@@ -1326,7 +1327,7 @@ func declinesAreInformationalAndDoNotPreventAcceptance() throws {
     try round.acceptTradeOffer(offerID: offer.id, byPlayerID: "p2")
     #expect(round.openTradeOffer == nil)
     #expect(round.state == state)
-    #expect(round.playerHand(for: "p2")?.resources == [.brick: 1, .wood: 1])
+    #expect(round.playerHand(for: "p2")?.resources(using: round.resourcesMap) == [.brick: 1, .wood: 1])
 }
 
 @Test
@@ -1337,7 +1338,7 @@ func declineValidatesOfferAndEligibility() throws {
     #expect(throws: PioneersModelError.noOpenTradeOffer) {
         try round.declineTradeOffer(offerID: 1, byPlayerID: "p2")
     }
-    round.playerHands[0].resources = [.wood: 2]
+    round.setTestResources([.wood: 2], at: 0)
     let offer = try round.postTradeOffer(
         give: [.wood: 1], receive: [.brick: 1], eligibleAcceptors: ["p2"]
     )
@@ -1374,8 +1375,8 @@ func openTradeOfferBlocksOtherTurnActionsWithoutMutatingRound() throws {
     var round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
     autoSetup(&round)
     _ = try round.rollDice()
-    round.playerHands[0].resources = Dictionary(uniqueKeysWithValues: Resource.allCases.map { ($0, 10) })
-    round.playerHands[0].heldDevCards = [DevCard(id: 9001, kind: .ranger)]
+    round.setTestResources(Dictionary(uniqueKeysWithValues: Resource.allCases.map { ($0, 10) }), at: 0)
+    round.setTestDevCards([DevCard(id: 9001, kind: .ranger)], at: 0, played: false)
     let offer = try round.postTradeOffer(give: [.wood: 10], receive: [.brick: 1])
     let edgeID = try #require(round.edges.first { round.canPlaceTrail(at: $0.id, forPlayerID: "p1") }?.id)
     let vertexID = try #require(round.buildings.first { $0.ownerID == "p1" }?.vertexID)
@@ -1399,7 +1400,7 @@ func openTradeOfferBlocksOtherTurnActionsWithoutMutatingRound() throws {
     #expect(throws: PioneersModelError.tradeOfferIsOpen) { try round.buildTrail(edgeID: edgeID) }
     try round.cancelTradeOffer()
     try round.buildTrail(edgeID: edgeID)
-    #expect(round.playerHand(for: "p1")?.resources[.wood] == 9)
+    #expect(round.playerHand(for: "p1")?.resources(using: round.resourcesMap)[.wood] == 9)
 }
 
 @Test
@@ -1407,8 +1408,8 @@ func openTradeOfferCanBeReplacedAcceptedOrClearedByEndingTurn() throws {
     var round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
     autoSetup(&round)
     _ = try round.rollDice()
-    round.playerHands[0].resources = [.wood: 10]
-    round.playerHands[1].resources = [.brick: 2]
+    round.setTestResources([.wood: 10], at: 0)
+    round.setTestResources([.brick: 2], at: 1)
     let first = try round.postTradeOffer(give: [.wood: 1], receive: [.brick: 1])
     let replacement = try round.postTradeOffer(give: [.wood: 2], receive: [.brick: 1])
     #expect(first.id != replacement.id)
@@ -1418,5 +1419,5 @@ func openTradeOfferCanBeReplacedAcceptedOrClearedByEndingTurn() throws {
     #expect(endingRound.openTradeOffer == nil)
     try round.acceptTradeOffer(offerID: replacement.id, byPlayerID: "p2")
     try round.bankTrade(give: .wood, for: .ore)
-    #expect(round.playerHand(for: "p1")?.resources[.wood] == 4)
+    #expect(round.playerHand(for: "p1")?.resources(using: round.resourcesMap)[.wood] == 4)
 }

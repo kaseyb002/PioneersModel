@@ -45,7 +45,7 @@ extension Round {
                 }
             }
             if collected.isEmpty == false {
-                grantResources(collected, toPlayerID: playerID)
+                collected = grantResources(collected, toPlayerID: playerID)
                 logAction(
                     playerID: playerID,
                     decision: .collectedResources(perPlayer: [playerID: collected])

@@ -37,13 +37,14 @@ extension Round {
         _ = autoCompleteSetup(&round)
         // Give each player a comfortable starting bundle.
         for i in round.playerHands.indices {
-            round.playerHands[i].resources = [
+            try? round.spendResources(round.playerHands[i].resources(using: round.resourcesMap), fromPlayerID: round.playerHands[i].player.id)
+            round.grantResources([
                 .wood: 2,
                 .brick: 2,
                 .wheat: 2,
                 .sheep: 1,
                 .ore: 1,
-            ]
+            ], toPlayerID: round.playerHands[i].player.id)
         }
         return round
     }

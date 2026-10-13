@@ -43,10 +43,10 @@ extension Round {
         guard let hand: PlayerHand = playerHand(for: playerID) else { return false }
 
         let canBuildTrail: Bool = hand.remainingTrails > 0 &&
-            Self.hand(hand.resources, covers: Self.trailCost) &&
+            Self.hand(hand.resources(using: resourcesMap), covers: Self.trailCost) &&
             edges.contains { canPlaceTrail(at: $0.id, forPlayerID: playerID) }
         let canBuildHomestead: Bool = hand.remainingHomesteads > 0 &&
-            Self.hand(hand.resources, covers: Self.homesteadCost) &&
+            Self.hand(hand.resources(using: resourcesMap), covers: Self.homesteadCost) &&
             vertices.contains { vertex in
                 canPlaceHomestead(at: vertex.id) &&
                     vertex.adjacentEdgeIDs.contains {
@@ -54,12 +54,12 @@ extension Round {
                     }
             }
         let canUpgradeTown: Bool = hand.remainingTowns > 0 &&
-            Self.hand(hand.resources, covers: Self.townCost) &&
+            Self.hand(hand.resources(using: resourcesMap), covers: Self.townCost) &&
             buildings.contains {
                 $0.ownerID == playerID && $0.kind == .homestead
             }
         let canBuyDevCard: Bool = devCardDeck.isEmpty == false &&
-            Self.hand(hand.resources, covers: Self.devCardCost)
+            Self.hand(hand.resources(using: resourcesMap), covers: Self.devCardCost)
 
         return canBuildTrail || canBuildHomestead || canUpgradeTown || canBuyDevCard
     }

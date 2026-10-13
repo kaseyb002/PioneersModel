@@ -194,28 +194,6 @@ extension Round {
         return true
     }
 
-    mutating func spendResources(_ cost: [Resource: Int], fromPlayerID playerID: PlayerID) throws {
-        guard let idx: Int = playerHands.firstIndex(where: { $0.player.id == playerID }) else {
-            throw PioneersModelError.playerNotFound
-        }
-        guard Round.hand(playerHands[idx].resources, covers: cost) else {
-            throw PioneersModelError.insufficientResources
-        }
-        for (r, n) in cost {
-            playerHands[idx].resources[r, default: 0] -= n
-            if playerHands[idx].resources[r] == 0 {
-                playerHands[idx].resources.removeValue(forKey: r)
-            }
-        }
-    }
-
-    mutating func grantResources(_ bundle: [Resource: Int], toPlayerID playerID: PlayerID) {
-        guard let idx: Int = playerHands.firstIndex(where: { $0.player.id == playerID }) else { return }
-        for (r, n) in bundle where n > 0 {
-            playerHands[idx].resources[r, default: 0] += n
-        }
-    }
-
     // MARK: - Players
 
     public func playerIndex(of playerID: PlayerID) -> Int? {

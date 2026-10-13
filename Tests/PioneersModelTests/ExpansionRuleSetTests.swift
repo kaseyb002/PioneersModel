@@ -30,11 +30,12 @@ func pairedPlayersFollowPrimaryTurnOrder(count: Int) throws {
 func pairedPlayerCanTradeBuyAndPlayButCannotTradeWithPlayers() throws {
     var round = try expansionRound()
     try round.rollDice()
-    round.playerHands[3].resources = [.wood: 8, .wheat: 2, .sheep: 2, .ore: 2]
+    round.setTestResources([.wood: 8, .wheat: 2, .sheep: 2, .ore: 2], at: 3)
     let held = DevCard(id: 800, kind: .bountifulHarvest)
     let bought = DevCard(id: 801, kind: .roundup)
-    round.playerHands[3].heldDevCards = [held]
-    round.devCardDeck = [bought]
+    round.setTestDevCards([held], at: 3, played: false)
+    round.devCardsMap[bought.id] = bought
+    round.devCardDeck = [bought.id]
     try round.endTurn()
     try round.bankTrade(give: .wood, for: .brick)
     #expect(throws: PioneersModelError.notInMainPhase) {
@@ -56,7 +57,7 @@ func pairedPlayerCanTradeBuyAndPlayButCannotTradeWithPlayers() throws {
 func originalSpecialBuildingAllowsMultiplePurchases() throws {
     var round = try expansionRound(rules: .specialBuilding)
     try round.rollDice()
-    round.playerHands[1].resources = [.wheat: 2, .sheep: 2, .ore: 2]
+    round.setTestResources([.wheat: 2, .sheep: 2, .ore: 2], at: 1)
     try round.endTurn()
     try round.buyDevCard()
     #expect(round.currentPlayerID == "p1")
@@ -95,7 +96,7 @@ func revisedRulesAreDefaultAndDoNotAffectSmallGames() throws {
 func secondaryPlayerCanWinAtStartOfPairedTurn() throws {
     var round = try expansionRound()
     try round.rollDice()
-    round.playerHands[3].heldDevCards = (900..<910).map { DevCard(id: $0, kind: .landmark) }
+    round.setTestDevCards((900..<910).map { DevCard(id: $0, kind: .landmark) }, at: 3, played: false)
     try round.endTurn()
     #expect(round.isComplete)
     if case .gameComplete(let winner) = round.state {

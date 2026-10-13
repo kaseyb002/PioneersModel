@@ -20,10 +20,10 @@ extension Round {
         guard let handIdx: Int = playerIndex(of: activeID) else {
             throw PioneersModelError.playerNotFound
         }
-        guard let cardIdx: Int = playerHands[handIdx].heldDevCards.firstIndex(where: { $0.id == id }) else {
+        guard let cardIdx: Int = playerHands[handIdx].heldDevCardIDs.firstIndex(of: id) else {
             throw PioneersModelError.devCardNotInHand
         }
-        let card: DevCard = playerHands[handIdx].heldDevCards[cardIdx]
+        guard let card = devCardsMap[id] else { throw PioneersModelError.devCardNotInHand }
 
         // Landmark VP cards aren't "played" as an action — they're revealed at game end.
         guard card.kind != .landmark else { throw PioneersModelError.cannotPlayLandmark }
@@ -42,14 +42,16 @@ extension Round {
         case .roundup:
             guard resource != nil else { throw PioneersModelError.invalidTradeOffer }
         case .bountifulHarvest:
-            guard pickedResources?.count == 2 else { throw PioneersModelError.invalidTradeOffer }
+            guard let pickedResources, pickedResources.count == min(2, bankResourceIDs.count) else { throw PioneersModelError.invalidTradeOffer }
+            let requested = pickedResources.reduce(into: [Resource: Int]()) { $0[$1, default: 0] += 1 }
+            guard Self.hand(bankResourceCounts, covers: requested) else { throw PioneersModelError.insufficientBankResources }
         case .ranger, .pathfinder, .landmark:
             break
         }
 
         // Remove the card and mark it played.
-        playerHands[handIdx].heldDevCards.remove(at: cardIdx)
-        playerHands[handIdx].playedDevCards.append(card)
+        playerHands[handIdx].heldDevCardIDs.remove(at: cardIdx)
+        playerHands[handIdx].playedDevCardIDs.append(id)
         hasPlayedDevCardThisTurn = true
 
         switch card.kind {
@@ -71,13 +73,11 @@ extension Round {
             var collected: Int = 0
             for pidIdx in playerHands.indices {
                 guard playerHands[pidIdx].player.id != activeID else { continue }
-                let count: Int = playerHands[pidIdx].resources[r] ?? 0
-                if count > 0 {
-                    playerHands[pidIdx].resources.removeValue(forKey: r)
-                    collected += count
-                }
+                let ids = playerHands[pidIdx].resourceIDs.filter { resourcesMap[$0] == r }
+                playerHands[pidIdx].resourceIDs.removeAll { resourcesMap[$0] == r }
+                playerHands[handIdx].resourceIDs.append(contentsOf: ids)
+                collected += ids.count
             }
-            playerHands[handIdx].resources[r, default: 0] += collected
             logAction(
                 playerID: activeID,
                 decision: .playedDevCard(.roundup(resource: r, collected: collected))
@@ -85,10 +85,10 @@ extension Round {
             state = .waitingForPlayer(id: activeID, phase: phaseAfterDevCardResolution)
 
         case .bountifulHarvest:
-            guard let picks: [Resource] = pickedResources, picks.count == 2 else {
+            guard let picks: [Resource] = pickedResources else {
                 throw PioneersModelError.invalidTradeOffer
             }
-            for r in picks { playerHands[handIdx].resources[r, default: 0] += 1 }
+            for r in picks { grantResources([r: 1], toPlayerID: activeID) }
             logAction(
                 playerID: activeID,
                 decision: .playedDevCard(.bountifulHarvest(resources: picks))

@@ -18,7 +18,7 @@ extension Round {
     public func victoryPoints(for playerID: PlayerID) -> Int {
         var total: Int = publicVictoryPoints(for: playerID)
         if let hand: PlayerHand = playerHand(for: playerID) {
-            total += hand.landmarksHeld
+            total += hand.landmarksHeld(using: devCardsMap)
         }
         return total
     }
@@ -127,7 +127,7 @@ extension Round {
 
     mutating func checkLargestArmy() {
         let previousHolder: PlayerID? = largestArmyHolder
-        let counts: [(PlayerID, Int)] = playerHands.map { ($0.player.id, $0.rangersPlayed) }
+        let counts: [(PlayerID, Int)] = playerHands.map { ($0.player.id, $0.rangersPlayed(using: devCardsMap)) }
         guard let best: (PlayerID, Int) = counts.max(by: { $0.1 < $1.1 }) else { return }
         guard best.1 >= Self.largestArmyMin else {
             // Someone was holding the bonus but they're no longer eligible? Standard Catan doesn't

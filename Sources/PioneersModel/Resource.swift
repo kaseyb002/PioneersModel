@@ -1,5 +1,7 @@
 import Foundation
 
+public typealias ResourceID = String
+
 public enum Resource: String, Equatable, Codable, CaseIterable, Hashable, Sendable {
     case wood
     case brick

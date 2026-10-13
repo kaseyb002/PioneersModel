@@ -176,7 +176,7 @@ public struct AIEngine: Sendable {
         guard let hand: PlayerHand = round.playerHand(for: playerID) else { return .endTurn }
 
         // 1. Town upgrade (most valuable VP gain).
-        if hand.remainingTowns > 0, Round.hand(hand.resources, covers: Round.townCost) {
+        if hand.remainingTowns > 0, Round.hand(hand.resources(using: round.resourcesMap), covers: Round.townCost) {
             let ownHomesteads: [Building] = round.buildings.filter {
                 $0.ownerID == playerID && $0.kind == .homestead
             }
@@ -188,21 +188,21 @@ public struct AIEngine: Sendable {
         }
 
         // 2. New homestead on the best available vertex we can reach.
-        if hand.remainingHomesteads > 0, Round.hand(hand.resources, covers: Round.homesteadCost) {
+        if hand.remainingHomesteads > 0, Round.hand(hand.resources(using: round.resourcesMap), covers: Round.homesteadCost) {
             if let target: VertexID = bestReachableHomesteadVertex(round: round, playerID: playerID) {
                 return .buildHomestead(vertexID: target)
             }
         }
 
         // 3. Trail that extends our network toward a promising vertex.
-        if hand.remainingTrails > 0, Round.hand(hand.resources, covers: Round.trailCost) {
+        if hand.remainingTrails > 0, Round.hand(hand.resources(using: round.resourcesMap), covers: Round.trailCost) {
             if let eid: EdgeID = chooseExpansionTrail(round: round, playerID: playerID) {
                 return .buildTrail(edgeID: eid)
             }
         }
 
         // 4. Dev card buy when we have the resources and there are cards left.
-        if round.devCardDeck.isEmpty == false, Round.hand(hand.resources, covers: Round.devCardCost) {
+        if round.devCardDeck.isEmpty == false, Round.hand(hand.resources(using: round.resourcesMap), covers: Round.devCardCost) {
             if difficulty != .easy {
                 return .buyDevCard
             }
@@ -228,7 +228,7 @@ public struct AIEngine: Sendable {
         // Treat special build like .main, minus trading and dev-card plays. If no build is worthwhile, pass.
         guard let hand: PlayerHand = round.playerHand(for: playerID) else { return .specialBuildPass }
 
-        if hand.remainingTowns > 0, Round.hand(hand.resources, covers: Round.townCost) {
+        if hand.remainingTowns > 0, Round.hand(hand.resources(using: round.resourcesMap), covers: Round.townCost) {
             let ownHomesteads: [Building] = round.buildings.filter {
                 $0.ownerID == playerID && $0.kind == .homestead
             }
@@ -236,15 +236,15 @@ public struct AIEngine: Sendable {
                 return .upgradeToTown(vertexID: target.vertexID)
             }
         }
-        if hand.remainingHomesteads > 0, Round.hand(hand.resources, covers: Round.homesteadCost),
+        if hand.remainingHomesteads > 0, Round.hand(hand.resources(using: round.resourcesMap), covers: Round.homesteadCost),
            let target: VertexID = bestReachableHomesteadVertex(round: round, playerID: playerID) {
             return .buildHomestead(vertexID: target)
         }
-        if hand.remainingTrails > 0, Round.hand(hand.resources, covers: Round.trailCost),
+        if hand.remainingTrails > 0, Round.hand(hand.resources(using: round.resourcesMap), covers: Round.trailCost),
            let eid: EdgeID = chooseExpansionTrail(round: round, playerID: playerID) {
             return .buildTrail(edgeID: eid)
         }
-        if round.devCardDeck.isEmpty == false, Round.hand(hand.resources, covers: Round.devCardCost) {
+        if round.devCardDeck.isEmpty == false, Round.hand(hand.resources(using: round.resourcesMap), covers: Round.devCardCost) {
             return .buyDevCard
         }
         return .specialBuildPass
@@ -290,7 +290,7 @@ public struct AIEngine: Sendable {
         // Discard from largest stacks first.
         var remaining: Int = required
         var discard: [Resource: Int] = [:]
-        let sorted: [(Resource, Int)] = hand.resources.sorted { $0.value > $1.value }
+        let sorted: [(Resource, Int)] = hand.resources(using: round.resourcesMap).sorted { $0.value > $1.value }
         for (r, n) in sorted {
             if remaining == 0 { break }
             let take: Int = min(n, remaining)
@@ -408,30 +408,30 @@ public struct AIEngine: Sendable {
     private func chooseBankOrPortTrade(round: Round, playerID: PlayerID) -> AIAction? {
         guard let hand: PlayerHand = round.playerHand(for: playerID) else { return nil }
         // Figure out what we're short on for the cheapest next build.
-        let wanted: Resource? = firstMissingResource(hand: hand.resources, forCost: Round.homesteadCost)
-            ?? firstMissingResource(hand: hand.resources, forCost: Round.trailCost)
-            ?? firstMissingResource(hand: hand.resources, forCost: Round.townCost)
-            ?? firstMissingResource(hand: hand.resources, forCost: Round.devCardCost)
-        guard let want: Resource = wanted else { return nil }
+        let wanted: Resource? = firstMissingResource(hand: hand.resources(using: round.resourcesMap), forCost: Round.homesteadCost)
+            ?? firstMissingResource(hand: hand.resources(using: round.resourcesMap), forCost: Round.trailCost)
+            ?? firstMissingResource(hand: hand.resources(using: round.resourcesMap), forCost: Round.townCost)
+            ?? firstMissingResource(hand: hand.resources(using: round.resourcesMap), forCost: Round.devCardCost)
+        guard let want: Resource = wanted, (round.bankResourceCounts[want] ?? 0) > 0 else { return nil }
 
         // Check ports we own.
         let owned: [Port] = round.ports(ownedBy: playerID)
         // 2:1 specific port trade preferred.
         for port in owned {
-            if case .specific(let r) = port.kind, (hand.resources[r] ?? 0) >= 2, r != want {
+            if case .specific(let r) = port.kind, (hand.resources(using: round.resourcesMap)[r] ?? 0) >= 2, r != want {
                 return .portTrade(portID: port.id, give: r, want: want)
             }
         }
         // 3:1 generic port trade next.
         for port in owned {
             if case .generic = port.kind {
-                if let give: Resource = Resource.allCases.first(where: { (hand.resources[$0] ?? 0) >= 3 && $0 != want }) {
+                if let give: Resource = Resource.allCases.first(where: { (hand.resources(using: round.resourcesMap)[$0] ?? 0) >= 3 && $0 != want }) {
                     return .portTrade(portID: port.id, give: give, want: want)
                 }
             }
         }
         // 4:1 bank trade last.
-        if let give: Resource = Resource.allCases.first(where: { (hand.resources[$0] ?? 0) >= 4 && $0 != want }) {
+        if let give: Resource = Resource.allCases.first(where: { (hand.resources(using: round.resourcesMap)[$0] ?? 0) >= 4 && $0 != want }) {
             return .bankTrade(give: give, want: want)
         }
         return nil
@@ -449,13 +449,13 @@ public struct AIEngine: Sendable {
     private func choosePlayableDevCard(round: Round, playerID: PlayerID) -> AIAction? {
         guard let hand: PlayerHand = round.playerHand(for: playerID) else { return nil }
         // Never play a card purchased this turn.
-        let cards: [DevCard] = hand.heldDevCards.filter {
+        let cards: [DevCard] = hand.heldDevCards(using: round.devCardsMap).filter {
             hand.devCardIDsPurchasedThisTurn.contains($0.id) == false && $0.kind != .landmark
         }
         // Prefer Bountiful Harvest or Roundup when they immediately unlock a build; otherwise Ranger.
         if let card: DevCard = cards.first(where: { $0.kind == .bountifulHarvest }) {
             let picks: [Resource] = bestTwoPicks(round: round, playerID: playerID)
-            return .playDevCard(id: card.id, resource: nil, pickedResources: picks)
+            if picks.count == min(2, round.bankResourceIDs.count) { return .playDevCard(id: card.id, resource: nil, pickedResources: picks) }
         }
         if let card: DevCard = cards.first(where: { $0.kind == .roundup }) {
             return .playDevCard(id: card.id, resource: bestRoundupTarget(round: round), pickedResources: nil)
@@ -470,14 +470,18 @@ public struct AIEngine: Sendable {
     }
 
     private func bestTwoPicks(round: Round, playerID: PlayerID) -> [Resource] {
-        // Crude: pick the first two resources we're short of for homestead cost.
+        guard let hand = round.playerHand(for: playerID) else { return [] }
+        var available = round.bankResourceCounts
+        let held = hand.resources(using: round.resourcesMap)
+        let preferred = Resource.allCases.filter { (held[$0] ?? 0) < (Round.homesteadCost[$0] ?? 0) }
         var picks: [Resource] = []
-        guard let hand: PlayerHand = round.playerHand(for: playerID) else { return [.wood, .brick] }
-        for (r, n) in Round.homesteadCost {
-            if (hand.resources[r] ?? 0) < n { picks.append(r) }
+        for resource in preferred + Resource.allCases {
+            while (available[resource] ?? 0) > 0, picks.count < 2 {
+                picks.append(resource)
+                available[resource, default: 0] -= 1
+            }
             if picks.count == 2 { break }
         }
-        while picks.count < 2 { picks.append(.wheat) }
         return picks
     }
 
@@ -485,7 +489,7 @@ public struct AIEngine: Sendable {
         // Resource with the largest overall opponent surplus.
         var totals: [Resource: Int] = [:]
         for hand in round.playerHands {
-            for (r, n) in hand.resources { totals[r, default: 0] += n }
+            for (r, n) in hand.resources(using: round.resourcesMap) { totals[r, default: 0] += n }
         }
         return totals.max(by: { $0.value < $1.value })?.key ?? .wheat
     }
@@ -495,7 +499,7 @@ public struct AIEngine: Sendable {
     private func chooseTradeOfferResponse(round: Round, offer: TradeOffer, playerID: PlayerID) -> AIAction {
         guard let hand: PlayerHand = round.playerHand(for: playerID) else { return .declineTradeOffer }
         // Only accept if we have the resources and the trade nets at least 1 resource we "want".
-        guard Round.hand(hand.resources, covers: offer.receive) else { return .declineTradeOffer }
+        guard Round.hand(hand.resources(using: round.resourcesMap), covers: offer.receive) else { return .declineTradeOffer }
         let wantedResources: Set<Resource> = Set([Round.homesteadCost, Round.trailCost, Round.townCost, Round.devCardCost].flatMap(\.keys))
         let giveResources: Set<Resource> = Set(offer.give.keys)
         if giveResources.intersection(wantedResources).isEmpty { return .declineTradeOffer }
