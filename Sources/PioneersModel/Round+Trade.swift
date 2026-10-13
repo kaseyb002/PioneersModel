@@ -44,7 +44,7 @@ extension Round {
 
         // If an offer is open, log its cancellation first.
         if let existing: TradeOffer = openTradeOffer {
-            logAction(playerID: activeID, decision: .cancelledTradeOffer(id: existing.id))
+            logAction(playerID: activeID, decision: .cancelledTradeOffer(id: existing.id, details: TradeDetails(offer: existing)))
         }
 
         let offer = TradeOffer(
@@ -57,7 +57,7 @@ extension Round {
         )
         nextTradeOfferID += 1
         openTradeOffer = offer
-        logAction(playerID: activeID, decision: .postedTradeOffer(id: offer.id))
+        logAction(playerID: activeID, decision: .postedTradeOffer(id: offer.id, details: TradeDetails(offer: offer)))
         return offer
     }
 
@@ -74,7 +74,7 @@ extension Round {
             throw PioneersModelError.notActivePlayer
         }
         openTradeOffer = nil
-        logAction(playerID: activeID, decision: .cancelledTradeOffer(id: offer.id))
+        logAction(playerID: activeID, decision: .cancelledTradeOffer(id: offer.id, details: TradeDetails(offer: offer)))
     }
 
     /// Records an eligible player's decline without closing the offer or changing the turn.
@@ -131,7 +131,7 @@ extension Round {
         playerHands[acceptorIndex].resourceIDs.append(contentsOf: given)
 
         openTradeOffer = nil
-        logAction(playerID: playerID, decision: .acceptedTradeOffer(id: offer.id, acceptorID: playerID))
+        logAction(playerID: playerID, decision: .acceptedTradeOffer(id: offer.id, acceptorID: playerID, details: TradeDetails(offer: offer)))
     }
 
     // MARK: - Bank Trade (4:1)

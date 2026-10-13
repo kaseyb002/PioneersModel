@@ -197,9 +197,9 @@ public struct Round: Equatable, Codable, Sendable {
         case builtTrail(edgeID: EdgeID)
         case boughtDevCard
         case playedDevCard(DevCardPlay)
-        case postedTradeOffer(id: TradeOfferID)
-        case cancelledTradeOffer(id: TradeOfferID)
-        case acceptedTradeOffer(id: TradeOfferID, acceptorID: PlayerID)
+        case postedTradeOffer(id: TradeOfferID, details: TradeDetails)
+        case cancelledTradeOffer(id: TradeOfferID, details: TradeDetails)
+        case acceptedTradeOffer(id: TradeOfferID, acceptorID: PlayerID, details: TradeDetails)
         case bankTrade(give: [Resource: Int], receive: [Resource: Int])
         case portTrade(portID: PortID, give: [Resource: Int], receive: [Resource: Int])
         case longestRoadAwarded

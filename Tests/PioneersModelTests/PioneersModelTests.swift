@@ -431,6 +431,55 @@ func bankTradeRequiresFour() throws {
 // MARK: - Trade Offer Protocol
 
 @Test
+func tradeLogsPreserveTermsAfterAcceptanceAndRoundEncoding() throws {
+    var round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
+    autoSetup(&round)
+    _ = try round.rollDice()
+    round.setTestResources([.wood: 2, .sheep: 3], at: 0)
+    round.setTestResources([.brick: 2, .ore: 2], at: 1)
+
+    let offer = try round.postTradeOffer(
+        give: [.wood: 1, .sheep: 2, .wheat: 0],
+        receive: [.brick: 1, .ore: 1, .wheat: 0]
+    )
+    let details = TradeDetails(
+        fromPlayerID: "p1", give: [.wood: 1, .sheep: 2], receive: [.brick: 1, .ore: 1]
+    )
+    try round.acceptTradeOffer(offerID: offer.id, byPlayerID: "p2")
+
+    #expect(round.openTradeOffer == nil)
+    let expected: [Round.Decision] = [
+        .postedTradeOffer(id: offer.id, details: details),
+        .acceptedTradeOffer(id: offer.id, acceptorID: "p2", details: details),
+    ]
+    #expect(round.log.suffix(2).map(\.decision) == expected)
+    #expect(round.log.last?.playerID == "p2")
+
+    let decoded = try JSONDecoder().decode(Round.self, from: JSONEncoder().encode(round))
+    #expect(decoded.log.suffix(2).map(\.decision) == expected)
+}
+
+@Test
+func cancelledTradeLogPreservesTermsAfterOfferClears() throws {
+    var round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
+    autoSetup(&round)
+    _ = try round.rollDice()
+    round.setTestResources([.wood: 2], at: 0)
+    let offer = try round.postTradeOffer(give: [.wood: 2], receive: [.ore: 1])
+
+    try round.cancelTradeOffer()
+
+    #expect(round.openTradeOffer == nil)
+    let expected = Round.Decision.cancelledTradeOffer(
+        id: offer.id,
+        details: TradeDetails(fromPlayerID: "p1", give: [.wood: 2], receive: [.ore: 1])
+    )
+    #expect(round.log.last?.decision == expected)
+    let decoded = try JSONDecoder().decode(Round.self, from: JSONEncoder().encode(round))
+    #expect(decoded.log.last?.decision == expected)
+}
+
+@Test
 func onlyActivePlayerCanPostTradeOffer() throws {
     var round: Round = try makeStandardRound(playerCount: 3, cookedDiceRolls: [5])
     autoSetup(&round)
@@ -475,7 +524,9 @@ func postTradeOfferReplacesExisting() throws {
     #expect(round.openTradeOffer?.id == second.id)
     // Log should contain both the cancel and the post.
     let hasCancel: Bool = round.log.contains { act in
-        if case .cancelledTradeOffer(let id) = act.decision, id == first.id { return true }
+        if case .cancelledTradeOffer(let id, let details) = act.decision, id == first.id {
+            return details == TradeDetails(offer: first)
+        }
         return false
     }
     #expect(hasCancel)
