@@ -3,7 +3,7 @@ import Foundation
 public enum PlayerColor: String, Equatable, Codable, CaseIterable, Sendable {
     case red
     case blue
-    case white
+    case purple
     case orange
     case green
     case brown
@@ -12,7 +12,7 @@ public enum PlayerColor: String, Equatable, Codable, CaseIterable, Sendable {
         switch self {
         case .red: "Red"
         case .blue: "Blue"
-        case .white: "White"
+        case .purple: "Purple"
         case .orange: "Orange"
         case .green: "Green"
         case .brown: "Brown"
