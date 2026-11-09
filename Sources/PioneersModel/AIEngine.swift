@@ -496,13 +496,94 @@ public struct AIEngine: Sendable {
 
     // MARK: - Trade offer response
 
+    private struct TradeBuildGoal {
+        let cost: [Resource: Int]
+        let value: Double
+        let protectsBuild: Bool
+
+        func missing(in resources: [Resource: Int]) -> Int {
+            cost.reduce(0) { $0 + max(0, $1.value - (resources[$1.key] ?? 0)) }
+        }
+    }
+
     private func chooseTradeOfferResponse(round: Round, offer: TradeOffer, playerID: PlayerID) -> AIAction {
-        guard let hand: PlayerHand = round.playerHand(for: playerID) else { return .declineTradeOffer }
-        // Only accept if we have the resources and the trade nets at least 1 resource we "want".
-        guard Round.hand(hand.resources(using: round.resourcesMap), covers: offer.receive) else { return .declineTradeOffer }
-        let wantedResources: Set<Resource> = Set([Round.homesteadCost, Round.trailCost, Round.townCost, Round.devCardCost].flatMap(\.keys))
-        let giveResources: Set<Resource> = Set(offer.give.keys)
-        if giveResources.intersection(wantedResources).isEmpty { return .declineTradeOffer }
+        guard let hand = round.playerHand(for: playerID) else { return .declineTradeOffer }
+        let before = hand.resources(using: round.resourcesMap)
+        guard Round.hand(before, covers: offer.receive) else { return .declineTradeOffer }
+
+        // Terms are from the proposer's perspective: the bot pays `receive` and gets `give`.
+        let receivedCount = offer.give.values.reduce(0, +)
+        let paidCount = offer.receive.values.reduce(0, +)
+        guard receivedCount >= paidCount else { return .declineTradeOffer }
+        var after = before
+        for (resource, count) in offer.receive { after[resource, default: 0] -= count }
+        for (resource, count) in offer.give { after[resource, default: 0] += count }
+
+        let goals = tradeBuildGoals(round: round, playerID: playerID, hand: hand)
+        // A useful offer must reduce an actual shortage, not merely contain a resource type
+        // that appears somewhere in the game's build costs.
+        guard goals.contains(where: { $0.missing(in: after) < $0.missing(in: before) }) else {
+            return .declineTradeOffer
+        }
+        if difficulty == .easy { return .acceptTradeOffer(offerID: offer.id) }
+
+        // Do not dismantle an affordable build to advance another goal.
+        guard goals.contains(where: {
+            $0.protectsBuild && $0.missing(in: before) == 0 && $0.missing(in: after) > 0
+        }) == false else { return .declineTradeOffer }
+
+        let ports = difficulty == .hard ? round.ports(ownedBy: playerID) : []
+        let improvement = tradeHandValue(after, goals: goals, ports: ports)
+            - tradeHandValue(before, goals: goals, ports: ports)
+        let minimumImprovement: Double = difficulty == .hard ? 0.5 : 0.1
+        guard improvement >= minimumImprovement else { return .declineTradeOffer }
+
+        // Near victory, even a useful equal exchange is too generous to the proposer.
+        if difficulty == .hard,
+           round.publicVictoryPoints(for: offer.fromPlayerID) >= Round.victoryPointsToWin - 2,
+           receivedCount <= paidCount {
+            return .declineTradeOffer
+        }
         return .acceptTradeOffer(offerID: offer.id)
+    }
+
+    private func tradeBuildGoals(round: Round, playerID: PlayerID, hand: PlayerHand) -> [TradeBuildGoal] {
+        var goals: [TradeBuildGoal] = []
+        if hand.remainingTowns > 0,
+           round.buildings.contains(where: { $0.ownerID == playerID && $0.kind == .homestead }) {
+            goals.append(.init(cost: Round.townCost, value: 3, protectsBuild: true))
+        }
+        if hand.remainingHomesteads > 0,
+           bestReachableHomesteadVertex(round: round, playerID: playerID) != nil {
+            goals.append(.init(cost: Round.homesteadCost, value: 3, protectsBuild: true))
+        }
+        if hand.remainingTrails > 0,
+           chooseExpansionTrail(round: round, playerID: playerID) != nil {
+            goals.append(.init(cost: Round.trailCost, value: 1, protectsBuild: true))
+        }
+        // Easy never buys development cards, so they are not a useful trade goal for it.
+        if difficulty != .easy, round.devCardDeck.isEmpty == false {
+            goals.append(.init(cost: Round.devCardCost, value: 1, protectsBuild: false))
+        }
+        return goals
+    }
+
+    private func tradeHandValue(
+        _ resources: [Resource: Int],
+        goals: [TradeBuildGoal],
+        ports: [Port]
+    ) -> Double {
+        // Progress toward the next build is increasingly valuable as it nears completion.
+        let buildValue = goals.reduce(0.0) { $0 + $1.value / Double(1 + $1.missing(in: resources)) }
+        // Retain the exchange value of surplus cards as well. Hard accounts for its own
+        // ports: two cards at a specific port have the buying power of four at the bank.
+        let exchangeValue = Resource.allCases.reduce(0.0) { value, resource in
+            let ratio = ports.reduce(4) { best, port in
+                if let required = port.kind.requiredResource, required != resource { return best }
+                return min(best, port.kind.ratio)
+            }
+            return value + Double(resources[resource] ?? 0) / Double(ratio)
+        }
+        return buildValue + exchangeValue
     }
 }
